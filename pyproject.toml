@@ -1,0 +1,13 @@
+[project]
+name = "ucuz-yemek"
+version = "0.1.0"
+description = "Real-data prototype: compare Turkish food-delivery prices (Trendyol Go confirmed, Yemeksepeti fragile, Getir merged into Trendyol Go)"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+ucuz-yemek = "ucuz_yemek.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
