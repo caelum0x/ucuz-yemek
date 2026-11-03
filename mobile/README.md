@@ -1,8 +1,9 @@
 # Ucuz Yemek — mobile
 
 Expo/React Native client for Ucuz Yemek. This is a **thin client** over the
-already-live backend (`https://ucuz-yemek.vercel.app`, the same FastAPI app
-the web frontend at `../web/index.html` talks to) — no business logic lives
+already-live backend (`https://ucuz-yemek.ereboslab.com`, the same FastAPI app
+the web frontend at `../web/index.html` talks to — migrated off Vercel
+2026-11-04, see `~/products/plans/ucuz-yemek.md`) — no business logic lives
 here. Every search is a real, live HTTP call to `/api/budget`; nothing is
 cached or fabricated on-device.
 

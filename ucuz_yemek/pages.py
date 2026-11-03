@@ -41,7 +41,7 @@ def _origin(request: Request) -> str:
     """Real scheme+host for this request, honoring Vercel's forwarded
     headers (the request's own ASGI scope sees the internal host, not the
     public one, inside Vercel's Python runtime)."""
-    host = request.headers.get("x-forwarded-host") or request.url.hostname or "ucuz-yemek.vercel.app"
+    host = request.headers.get("x-forwarded-host") or request.url.hostname or "ucuz-yemek.ereboslab.com"
     scheme = request.headers.get("x-forwarded-proto") or "https"
     return f"{scheme}://{host}"
 
