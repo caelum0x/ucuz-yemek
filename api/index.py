@@ -32,7 +32,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 # ucuz_yemek/ lives at the repo root, one level up from this api/ dir. Vercel's
 # Python builder includes it via vercel.json's includeFiles; make sure it's
@@ -278,6 +278,14 @@ _FRONTEND_HTML_PATH = Path(__file__).resolve().parent.parent / "web" / "index.ht
 @app.get("/", response_class=HTMLResponse)
 def frontend() -> str:
     return _FRONTEND_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots_txt() -> str:
+    """Standard allow-all crawl directive pointing at the real sitemap (see
+    ucuz_yemek/pages.py's sitemap()) -- no SEO surface this app serves is
+    gated behind auth, so there is nothing real to Disallow."""
+    return "User-agent: *\nAllow: /\nSitemap: https://ucuz-yemek.ereboslab.com/sitemap.xml\n"
 
 
 # Real, server-rendered multi-page frontend (city pages, chain-comparison

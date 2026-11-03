@@ -40,6 +40,8 @@
   restoranları döndürüyor, bu yüzden her şehir merkezinde her zincir çıkmayabilir -- hiçbir şey uydurulmaz.</div>
 {% endif %}
 
+<p><a href="/sehir/{{ city.slug }}">&larr; {{ city.display_name }}'de ne yenir, tüm bütçe sonuçlarını gör</a></p>
+
 <h2>{{ chain.display_name }}'i başka şehirde karşılaştır</h2>
 <ul class="city-grid">
   {% for other in cities %}
