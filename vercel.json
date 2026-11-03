@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "{ucuz_yemek/**,web/**}",
+      "maxDuration": 30
+    }
+  }
+}

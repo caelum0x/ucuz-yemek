@@ -14,6 +14,13 @@ Usage:
                                    a live branch of --chain on each platform and
                                    matches individual menu items, not just
                                    restaurants, see ucuz_yemek/matching.py)
+    uv run ucuz-yemek budget --budget 300 [--lat 41.0422] [--lon 29.0061]
+                                  (real headline flow: "I have N TRY, what can I
+                                   actually eat right now" -- live affordable
+                                   items ranked by value across both platforms,
+                                   see ucuz_yemek/budget.py. This is also what
+                                   the web frontend in web/index.html calls via
+                                   api/index.py's /api/budget.)
 """
 
 from __future__ import annotations
@@ -21,7 +28,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from ucuz_yemek import discovery, matching, trendyol_go, yemeksepeti
+from ucuz_yemek import budget as budget_module
+from ucuz_yemek import service, trendyol_go, yemeksepeti
 
 DEFAULT_LAT = 40.9833  # Kadıköy, İstanbul
 DEFAULT_LON = 29.0333
@@ -98,22 +106,6 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return max(trendyol_rc, yemeksepeti_rc)
 
 
-def _dedupe_items(items) -> list[matching.MenuItem]:
-    """Real restaurant menus repeat the same item across multiple display
-    sections (e.g. a 'recommended' section duplicating the main list) --
-    dedupe by (name, price) so matching spends its Jev budget on genuinely
-    different items, not the same listing counted five times."""
-    seen: set[tuple[str, float]] = set()
-    result: list[matching.MenuItem] = []
-    for item in items:
-        key = (item.name, item.price_try)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(item)
-    return result
-
-
 def cmd_match(args: argparse.Namespace) -> int:
     print("=" * 60)
     print(f"Ucuz Yemek — real cross-platform SAME-ITEM matching for '{args.chain}'")
@@ -121,41 +113,24 @@ def cmd_match(args: argparse.Namespace) -> int:
     print()
 
     print(f"[Trendyol Go] Searching near ({args.lat}, {args.lon}) for '{args.chain}' ...")
-    trendyol_restaurant = discovery.find_trendyol_restaurant(args.chain, args.lat, args.lon)
-    if trendyol_restaurant is None:
-        print(f"  No live Trendyol Go restaurant matching '{args.chain}' near that point.")
-        return 1
-    print(f"  Found: {trendyol_restaurant['name']} (id {trendyol_restaurant['id']})")
-
     print(f"[Yemeksepeti] Searching the live restaurant sitemap for '{args.chain}' ...")
-    yemeksepeti_url = discovery.find_yemeksepeti_restaurant_url(args.chain)
-    if yemeksepeti_url is None:
-        print(f"  No live Yemeksepeti restaurant matching '{args.chain}' in the sitemap.")
+    try:
+        result = service.run_match(args.chain, args.lat, args.lon)
+    except service.MatchServiceError as exc:
+        print(f"  {exc}")
         return 1
-    print(f"  Found: {yemeksepeti_url}")
+    print(f"  Trendyol Go found: {result.trendyol_restaurant_name} (id {result.trendyol_restaurant_id})")
+    print(f"  Yemeksepeti found: {result.yemeksepeti_url}")
     print()
-
-    menu = trendyol_go.get_restaurant_menu(trendyol_restaurant["id"], args.lat, args.lon)
-    trendyol_items = _dedupe_items(
-        matching.MenuItem("trendyol_go", item["name"], item["price_try"], item)
-        for item in trendyol_go.flatten_menu_items(menu)
-        if item["price_try"] is not None
-    )
-
-    html = yemeksepeti.fetch_restaurant_html(yemeksepeti_url)
-    yemeksepeti_items = _dedupe_items(
-        matching.MenuItem("yemeksepeti", item["name"], item["price_try"], item)
-        for item in yemeksepeti.extract_priced_items(html, limit=500)
-    )
 
     print(
-        f"Live menus fetched: {len(trendyol_items)} Trendyol Go items, "
-        f"{len(yemeksepeti_items)} Yemeksepeti items."
+        f"Live menus fetched: {result.trendyol_item_count} Trendyol Go items, "
+        f"{result.yemeksepeti_item_count} Yemeksepeti items."
     )
-    print("Running blocking -> matching -> merge (Jev-adjudicated for ambiguous pairs) ...")
+    print("Ran blocking -> matching -> merge (Jev-adjudicated for ambiguous pairs).")
     print()
 
-    summary = matching.match_menus_detailed(trendyol_items, yemeksepeti_items)
+    summary = result.summary
     results = summary.matches
     print(
         f"Pipeline stats: {summary.candidate_pairs} candidate pairs considered "
@@ -176,20 +151,43 @@ def cmd_match(args: argparse.Namespace) -> int:
     print(f"{len(results)} real same-item matches found:")
     print()
     method_counts: dict[str, int] = {}
-    for result in results:
-        method_counts[result.method] = method_counts.get(result.method, 0) + 1
-        a, b = result.item_a, result.item_b
-        cheaper = result.cheaper_platform
+    for match_result in results:
+        method_counts[match_result.method] = method_counts.get(match_result.method, 0) + 1
+        a, b = match_result.item_a, match_result.item_b
+        cheaper = match_result.cheaper_platform
         if cheaper is None:
             price_note = f"same price ({a.price_try} TRY on both)"
         else:
-            price_note = f"cheaper on {cheaper} by {result.price_diff_try} TRY"
-        print(f"  - [{result.method}, confidence {result.confidence:.2f}]")
+            price_note = f"cheaper on {cheaper} by {match_result.price_diff_try} TRY"
+        print(f"  - [{match_result.method}, confidence {match_result.confidence:.2f}]")
         print(f"      trendyol_go : {a.name} — {a.price_try} TRY")
         print(f"      yemeksepeti : {b.name} — {b.price_try} TRY")
         print(f"      -> {price_note}")
     print()
     print(f"Match methods used: {method_counts}")
+    return 0
+
+
+def cmd_budget(args: argparse.Namespace) -> int:
+    print("=" * 60)
+    print(f"Ucuz Yemek — real budget search: what can I eat for {args.budget:.0f} TRY?")
+    print("=" * 60)
+    print()
+    print(f"Searching live near ({args.lat}, {args.lon}) ...")
+    result = budget_module.find_affordable_items(args.budget, args.lat, args.lon)
+    print(f"  Trendyol Go restaurants checked: {', '.join(result.trendyol_restaurants_checked)}")
+    print(f"  Yemeksepeti chains checked: {', '.join(result.yemeksepeti_chains_checked)}")
+    print()
+
+    if not result.items:
+        print("No real affordable items found for this budget/location right now.")
+        return 0
+
+    top = result.items[: args.limit]
+    print(f"{len(result.items)} real affordable items found, top {len(top)} by value:")
+    print()
+    for item in top:
+        print(f"    [{item.platform}] {item.restaurant_name} — {item.item_name}: {item.price_try} TRY")
     return 0
 
 
@@ -221,6 +219,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_match.add_argument("--lat", type=float, default=41.0422)  # Beşiktaş, İstanbul
     p_match.add_argument("--lon", type=float, default=29.0061)
     p_match.set_defaults(func=cmd_match)
+
+    p_budget = sub.add_parser(
+        "budget",
+        help="Real headline flow: live affordable items for a budget, ranked by value",
+    )
+    p_budget.add_argument("--budget", type=float, required=True, help="Budget in TRY, e.g. 300")
+    p_budget.add_argument("--lat", type=float, default=41.0422)  # Beşiktaş, İstanbul
+    p_budget.add_argument("--lon", type=float, default=29.0061)
+    p_budget.add_argument("--limit", type=int, default=20)
+    p_budget.set_defaults(func=cmd_budget)
 
     return parser
 

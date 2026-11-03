@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ucuz Yemek — what can I eat for this budget</title>
+<meta name="description" content="Enter a budget in TRY and a location. See real, live affordable items across Trendyol Go and Yemeksepeti, ranked by value.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #131209;
+    --surface: #1F1F1F;
+    --surface-2: #272727;
+    --border: #313131;
+    --text: #FFFFFF;
+    --text-dim: #9B9B9B;
+    --text-faint: #6b6b6b;
+    --accent: #FFFFFF;
+    --good: #7fd98a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--border); }
+  .skip-link {
+    position: absolute; left: -9999px; top: 0; background: var(--surface); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; z-index: 10;
+  }
+  .skip-link:focus { left: 16px; top: 16px; }
+
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+
+  header.hero { max-width: 680px; }
+  h1 {
+    font-size: 36px;
+    line-height: 40px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    background: linear-gradient(to right, #FFFFFF, #9B9B9B);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-wrap: balance;
+  }
+  p.sub {
+    color: var(--text-dim);
+    font-size: 18px;
+    line-height: 28px;
+    margin: 0 0 40px;
+    max-width: 560px;
+    text-wrap: pretty;
+  }
+
+  form.search {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .field-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .field {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  label {
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  input, select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 16px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 300ms cubic-bezier(0.22,1,0.36,1);
+  }
+  input:focus, select:focus {
+    border-color: var(--text);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
+  }
+  input::placeholder { color: var(--text-faint); }
+
+  button.submit {
+    background: var(--text);
+    color: #000000;
+    border: none;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: transform 300ms cubic-bezier(0.22,1,0.36,1), opacity 300ms cubic-bezier(0.22,1,0.36,1);
+  }
+  button.submit:hover { opacity: 0.88; }
+  button.submit:active { transform: scale(0.98); }
+  button.submit:disabled { opacity: 0.5; cursor: default; }
+  button.submit:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,0.25); }
+
+  .scope-note {
+    font-size: 13px;
+    color: var(--text-faint);
+    margin: 0;
+  }
+
+  section.results { margin-top: 40px; }
+  .results-meta {
+    font-size: 14px;
+    color: var(--text-dim);
+    margin: 0 0 16px;
+  }
+
+  ul.items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  li.item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .item-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .item-name {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .item-restaurant { font-size: 13px; color: var(--text-dim); }
+  .item-price-wrap { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .platform-tag {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  .item-price { font-size: 16px; font-weight: 700; color: var(--good); white-space: nowrap; }
+
+  .state-box {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+  .state-box.error { color: #e5a3a3; border-color: #4a2a2a; }
+
+  .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
+  .skeleton-row {
+    height: 54px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  footer {
+    margin-top: 64px;
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+  footer a { color: var(--text-faint); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to content</a>
+<main id="main-content">
+  <header class="hero">
+    <h1>What can I eat for this budget</h1>
+    <p class="sub">Enter a budget in Turkish lira and a location. See real, live items you can
+      actually afford right now on Trendyol Go and Yemeksepeti, in one list.</p>
+  </header>
+
+  <form class="search" id="search-form">
+    <div class="field-row">
+      <div class="field">
+        <label for="budget">Budget (TRY)</label>
+        <input type="number" id="budget" name="budget" min="1" max="10000" step="1" value="300" required inputmode="decimal">
+      </div>
+      <div class="field">
+        <label for="location">Location</label>
+        <select id="location" name="location">
+          <option value="41.0422,29.0061">Beşiktaş, İstanbul</option>
+          <option value="40.9833,29.0333">Kadıköy, İstanbul</option>
+          <option value="41.0766,29.0577">Şişli, İstanbul</option>
+          <option value="40.9923,29.1244">Ataşehir, İstanbul</option>
+          <option value="custom">Custom coordinates</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row" id="custom-coords" style="display:none;">
+      <div class="field">
+        <label for="lat">Latitude</label>
+        <input type="number" id="lat" name="lat" step="0.0001" placeholder="41.0422">
+      </div>
+      <div class="field">
+        <label for="lon">Longitude</label>
+        <input type="number" id="lon" name="lon" step="0.0001" placeholder="29.0061">
+      </div>
+    </div>
+    <button class="submit" type="submit" id="submit-btn">See what I can eat</button>
+    <p class="scope-note">Trendyol Go: real nearest restaurants to this location. Yemeksepeti: a
+      curated set of popular chains, since that platform has no real location search yet.</p>
+  </form>
+
+  <section class="results" id="results" aria-live="polite"></section>
+
+  <footer>
+    Real cross platform same item comparison for a specific chain is also available via the API at
+    <code>/api/match?chain=subway&amp;lat=41.0422&amp;lon=29.0061</code>.
+    Source: <a href="https://github.com/caelum0x/ucuz-yemek">github.com/caelum0x/ucuz-yemek</a>.
+    No fabricated or cached data — every search is a live fetch made at request time.
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var form = document.getElementById("search-form");
+  var locationSelect = document.getElementById("location");
+  var customCoords = document.getElementById("custom-coords");
+  var latInput = document.getElementById("lat");
+  var lonInput = document.getElementById("lon");
+  var resultsEl = document.getElementById("results");
+  var submitBtn = document.getElementById("submit-btn");
+
+  locationSelect.addEventListener("change", function () {
+    customCoords.style.display = locationSelect.value === "custom" ? "flex" : "none";
+  });
+
+  function skeleton() {
+    var rows = "";
+    for (var i = 0; i < 5; i++) {
+      rows += '<div class="skeleton-row"></div>';
+    }
+    resultsEl.innerHTML = '<div class="skeleton-list">' + rows + '</div>';
+  }
+
+  function renderError(message) {
+    resultsEl.innerHTML =
+      '<div class="state-box error">Search failed. ' + escapeHtml(message) + '</div>';
+  }
+
+  function renderEmpty() {
+    resultsEl.innerHTML =
+      '<div class="state-box">No real affordable items found for this budget and location ' +
+      "right now. Try a larger budget or a different location.</div>";
+  }
+
+  function escapeHtml(value) {
+    var div = document.createElement("div");
+    div.textContent = String(value);
+    return div.innerHTML;
+  }
+
+  function platformLabel(platform) {
+    return platform === "trendyol_go" ? "Trendyol Go" : "Yemeksepeti";
+  }
+
+  function renderResults(data) {
+    if (!data.items || data.items.length === 0) {
+      renderEmpty();
+      return;
+    }
+
+    var metaText =
+      data.total_affordable_items_found +
+      " real items found at or under " +
+      data.budget_try +
+      " TRY, showing the top " +
+      data.items.length +
+      " by value.";
+
+    var itemsHtml = data.items
+      .map(function (item) {
+        return (
+          '<li class="item">' +
+          '<div class="item-info">' +
+          '<span class="item-name">' + escapeHtml(item.item_name) + "</span>" +
+          '<span class="item-restaurant">' + escapeHtml(item.restaurant_name) + "</span>" +
+          "</div>" +
+          '<div class="item-price-wrap">' +
+          '<span class="platform-tag">' + escapeHtml(platformLabel(item.platform)) + "</span>" +
+          '<span class="item-price">' + item.price_try + " TRY</span>" +
+          "</div>" +
+          "</li>"
+        );
+      })
+      .join("");
+
+    resultsEl.innerHTML =
+      '<p class="results-meta">' + escapeHtml(metaText) + "</p>" +
+      '<ul class="items">' + itemsHtml + "</ul>";
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+
+    var budget = parseFloat(document.getElementById("budget").value);
+    if (!budget || budget <= 0) {
+      renderError("Enter a budget greater than 0.");
+      return;
+    }
+
+    var lat, lon;
+    if (locationSelect.value === "custom") {
+      lat = parseFloat(latInput.value);
+      lon = parseFloat(lonInput.value);
+      if (isNaN(lat) || isNaN(lon)) {
+        renderError("Enter both a latitude and a longitude.");
+        return;
+      }
+    } else {
+      var parts = locationSelect.value.split(",");
+      lat = parseFloat(parts[0]);
+      lon = parseFloat(parts[1]);
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Searching live...";
+    skeleton();
+
+    var url =
+      "/api/budget?budget=" + encodeURIComponent(budget) +
+      "&lat=" + encodeURIComponent(lat) +
+      "&lon=" + encodeURIComponent(lon) +
+      "&limit=30";
+
+    fetch(url)
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().then(function (body) {
+            throw new Error(body.detail || "Request failed with status " + response.status);
+          });
+        }
+        return response.json();
+      })
+      .then(renderResults)
+      .catch(function (err) {
+        renderError(err.message || "Unknown error.");
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "See what I can eat";
+      });
+  });
+})();
+</script>
+</body>
+</html>

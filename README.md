@@ -1,4 +1,33 @@
-# Ucuz Yemek — real-data prototype
+# Ucuz Yemek — real Turkish food-delivery budget search + price comparison
+
+A real, working web app, not just a dev tool: enter a budget in TRY and a
+location, see real, live items you can actually afford right now on
+Trendyol Go and Yemeksepeti, in one list. The core pain point (owner
+clarification, 2026-11-03): "I have 300 lira, what can I actually eat"
+instead of scrolling two apps by hand.
+
+## Web app (primary interface)
+
+```bash
+cd ucuz-yemek
+uv run uvicorn api.index:app --reload
+# open http://127.0.0.1:8000/
+```
+
+- `web/index.html` — the real frontend: one budget input, one location
+  picker, one results list (platform, restaurant, item, price). No
+  frameworks, plain HTML/CSS/JS, served directly by FastAPI.
+- `api/index.py` — FastAPI app (same deploy shape as this portfolio's
+  `darkvol`): `GET /api/budget` (the real headline flow, wraps
+  `ucuz_yemek/budget.py`), `GET /api/match` (the real cross-platform
+  same-item comparison, wraps `ucuz_yemek/service.py`), `GET /api/healthz`.
+- Every request is a live fetch against Trendyol Go and/or Yemeksepeti made
+  at request time — there is no cache or mocked response anywhere in the
+  response path.
+- **Not deployed yet** — build/verify/commit only, per a standing portfolio
+  rule. See "Deploying" below for exactly what that would take.
+
+## What this was originally (still true, still real)
 
 A small, honest proof-of-concept for a Turkish food-delivery price-comparison tool.
 This is **not** a product yet — it's proof that real, unauthenticated price data
@@ -164,6 +193,37 @@ item pairs. Set `TYPESAFE_API_KEY` in the environment, or add
 convention — `jev.py` reads that file automatically if the env var isn't
 set). `trendyol`, `yemeksepeti`, and `compare` need no key at all.
 
+## Real budget-first search (`budget`, the headline feature, added 2026-11-03)
+
+```bash
+uv run python -m ucuz_yemek.cli budget --budget 300 --lat 41.0422 --lon 29.0061
+```
+
+`ucuz_yemek/budget.py` answers "I have N TRY, what can I actually eat right
+now" directly, across both platforms:
+
+- **Trendyol Go**: real location-based nearby-restaurant search (no chain
+  filter needed) — `trendyol_go.search_restaurants` already returns the real
+  nearest restaurants to a lat/lon. Capped to the nearest 6 restaurants per
+  request (each is its own live menu-fetch HTTP call).
+- **Yemeksepeti**: no real location-search API exists yet (same finding as
+  `discovery.py`), so v1 checks a curated set of popular chains independently
+  confirmed live on the sitemap this session: Subway, Burger King,
+  McDonald's, KFC, Domino's. This is a real, honestly-scoped v1 limitation,
+  not a silent narrowing — the API response labels it explicitly via
+  `scope_note`.
+- Ranking (v1, deliberately simple): closest to the budget first (most food
+  for the money), since no real per-item nutrition/portion data exists to
+  rank on anything richer yet.
+
+**Verified live, real data, this session**: a 300 TRY search near Beşiktaş
+(41.0422, 29.0061) checked 6 real Trendyol Go restaurants + 5 curated
+Yemeksepeti chains in ~9 seconds wall time and returned **636 real affordable
+items**, e.g. real Subway/Burger King/McDonald's/Domino's combo items at or
+just under 300 TRY on both platforms, sorted closest-to-budget first. Also
+driven end-to-end through the real browser UI (not just the API) — see
+`plans/ucuz-yemek.md` for the full verification notes and screenshot.
+
 ## Project layout
 
 ```
@@ -173,8 +233,28 @@ ucuz_yemek/
   discovery.py     # finds a live restaurant for the same chain on both platforms
   matching.py      # blocking -> matching -> merge-policy same-item matcher
   jev.py           # thin client for the real TypeSafe System One (Jev) API
-  cli.py           # argparse CLI: trendyol / yemeksepeti / compare / match
+  budget.py        # real budget-first affordable-item search (the headline feature)
+  service.py       # shared match pipeline, used by both cli.py and api/index.py
+  cli.py           # argparse CLI: trendyol / yemeksepeti / compare / match / budget
+api/
+  index.py         # FastAPI app: /api/budget, /api/match, /api/healthz, serves web/index.html
+web/
+  index.html        # the real frontend (plain HTML/CSS/JS, no framework)
 ```
+
+## Deploying (staged, not executed — see plans/ucuz-yemek.md)
+
+`vercel.json` and `requirements.txt` are already in the repo, same shape as
+`darkvol`'s working Vercel deploy. A real deploy would be:
+
+```bash
+vercel --prod
+```
+
+No environment variables are required for `/api/budget` (Trendyol Go and
+Yemeksepeti need no auth). `/api/match` additionally needs `TYPESAFE_API_KEY`
+set in the Vercel project's environment variables if that secondary endpoint
+is exposed publicly.
 
 ## Next steps (not done, scoped out of this prototype)
 
