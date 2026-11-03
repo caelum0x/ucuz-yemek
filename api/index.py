@@ -85,11 +85,12 @@ def _proxy_budget(budget: float, lat: float, lon: float, limit: int, sort: str) 
     url = f"{UCUZ_YEMEK_BACKEND_URL}/api/budget?{qs}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "ucuz-yemek-vercel-proxy/1"})
-        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310 -- our own backend, fixed URL
+        with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 -- our own backend, fixed URL
             if resp.status != 200:
                 return None
             return json.loads(resp.read())
-    except (urllib.error.URLError, TimeoutError, ValueError):
+    except Exception:  # noqa: BLE001 -- genuinely best-effort: any failure (DNS, TLS, reset,
+        # timeout, malformed JSON) must fall back to the live-fetch path, never 500 the request.
         return None
 
 
