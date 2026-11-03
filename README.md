@@ -45,6 +45,52 @@ from a live HTTP request made at run time against the real platform.
 - It got consolidated into Trendyol Go / Uber Eats. There is nothing separate to
   fetch — "Getir Yemek" data IS the Trendyol Go data above.
 
+## Real cross-platform same-item matching (`match`, added 2026-11-03)
+
+`compare` (above) only ever proved both fetchers work — it never matched
+individual items, which was this README's own explicitly flagged gap. `match`
+closes it for real:
+
+```bash
+uv run python -m ucuz_yemek.cli match --chain subway --lat 41.0422 --lon 29.0061
+```
+
+1. **Restaurant discovery, both platforms, for the same chain** (`discovery.py`):
+   Trendyol Go via its own live search filtered by name; Yemeksepeti via its
+   real public sitemap (`adventure-map-restaurant-{0,1,2}.xml`, ~37MB,
+   cached 24h in `~/.cache/ucuz-yemek`) filtered by slug. No restaurant-search
+   API exists on Yemeksepeti, so the sitemap is the only real path — see the
+   original probe notes above.
+2. **Entity-fusion matching pipeline** (`matching.py`, same blocking ->
+   matching -> merge-policy architecture used for deduplicating entities
+   across knowledge-graph sources): cheap token-Jaccard blocking first, then
+   exact/near-exact normalized strings auto-match for free, and every
+   genuinely ambiguous pair (shared words but possibly a different size or a
+   combo-vs-standalone variant — Jaccard alone can't tell) goes to a real
+   **Jev** (TypeSafe System One, `jev.py`) Noul judgment: "do these two
+   listings refer to the exact same product, same size/variant?" Pairs Jev
+   is unsure about are left `needs_review`, never silently force-matched.
+3. **Verified live, real Subway branches, 2026-11-03**: Trendyol Go's Subway
+   (Cihannüma, Beşiktaş) vs Yemeksepeti's Subway (Kozyatağı, Kadıköy) —
+   179 Trendyol items, 198 Yemeksepeti items, 1047 candidate pairs from
+   blocking, **172 real same-item matches** (168 exact-string, 4 Jev-resolved,
+   e.g. correctly matching "İtalyan B.M.T. (15 cm)" to "İtalyan B.M.T.
+   Sandviç (15 cm)" while correctly leaving "(30 cm.) Menü" vs "(30 cm)"
+   combo-vs-standalone pairs as `needs_review` instead of merging them). A
+   spot-check of every matched pair confirmed zero size-variant mismatches
+   (e.g. no 15 cm item ever matched to a 30 cm one). Real finding from that
+   run: Yemeksepeti was cheaper than Trendyol Go on essentially every matched
+   item, by ~15-20 TRY per sandwich — a real, live, same-item price gap, not
+   a fabricated example.
+4. **Honest remaining limitation**: this proves the matching *engine* works
+   end-to-end on live data for a chain that exists on both platforms. It does
+   not yet have a UI, a scheduler, or a database — it's a CLI you run on
+   demand. It's also chain-dependent: non-chain restaurants (a single meze
+   shop, a single kebap place) usually don't exist under the same name on
+   both platforms, so `match` will honestly report zero matches rather than
+   invent a comparison — see the `compare` limitations below, which still
+   apply to restaurants that aren't the same chain on both platforms.
+
 ## Known limitations — read before trusting this as a comparison tool
 
 1. **`compare` is not a real cross-platform comparison yet.** The Trendyol Go
@@ -54,8 +100,8 @@ from a live HTTP request made at run time against the real platform.
    restaurants by location). The two platforms have unrelated restaurant IDs
    and no shared catalog to join on — so `compare` currently prints two
    **different** restaurants' menus side by side, not the same order's price
-   on both platforms. It proves both fetchers work on real live data; it does
-   not yet prove "X is cheaper than Y for the same food."
+   on both platforms. `match` (above) is the real fix for chain restaurants;
+   `compare` is unchanged for the general non-chain case.
 2. **Yemeksepeti access is fragile, not a stable API.** It depends on (a) a
    mobile User-Agent bypassing PerimeterX bot detection and (b) the page's
    internal Apollo cache keeping its current shape. Either could break without
@@ -100,11 +146,23 @@ uv run python -m ucuz_yemek.cli yemeksepeti --url https://www.yemeksepeti.com/re
 
 # Both, side by side (see "Known limitations" above — not yet a real comparison)
 uv run python -m ucuz_yemek.cli compare --limit 5
+
+# Real cross-platform SAME-ITEM matching for one chain (needs a TypeSafe API
+# key, see "Jev API key" below)
+uv run python -m ucuz_yemek.cli match --chain subway --lat 41.0422 --lon 29.0061
 ```
 
 Note: `uv run <entrypoint-name>` (the installed console script) was observed to
 hang in this dev environment; `uv run python -m ucuz_yemek.cli ...` is the
 tested, reliable invocation. If you hit the same hang, that's the workaround.
+
+### Jev API key (required for `match` only)
+
+`match` calls the real TypeSafe System One API (Jev) to adjudicate ambiguous
+item pairs. Set `TYPESAFE_API_KEY` in the environment, or add
+`typesafe_api_key=...` to `~/products/.env` (this portfolio's existing
+convention — `jev.py` reads that file automatically if the env var isn't
+set). `trendyol`, `yemeksepeti`, and `compare` need no key at all.
 
 ## Project layout
 
@@ -112,19 +170,24 @@ tested, reliable invocation. If you hit the same hang, that's the workaround.
 ucuz_yemek/
   trendyol_go.py   # real JSON API fetcher (api.tgoapis.com)
   yemeksepeti.py   # real but fragile HTML-scrape fetcher
-  cli.py           # argparse CLI: trendyol / yemeksepeti / compare
+  discovery.py     # finds a live restaurant for the same chain on both platforms
+  matching.py      # blocking -> matching -> merge-policy same-item matcher
+  jev.py           # thin client for the real TypeSafe System One (Jev) API
+  cli.py           # argparse CLI: trendyol / yemeksepeti / compare / match
 ```
 
 ## Next steps (not done, scoped out of this prototype)
 
-- Build a real geo-aware Yemeksepeti restaurant search (there isn't a clean
-  one — would need either further probing of `disco.deliveryhero.io`'s
-  internal API auth, or scraping the city/neighborhood listing pages).
-- Pick a canonical item (e.g. "Big Mac menu") and match it across both
-  platforms' restaurant catalogs by name-similarity, to get an actual
-  same-order comparison instead of two arbitrary restaurants.
+- `match` is chain-only (needs the same restaurant name reachable on both
+  platforms). Real local restaurants (one meze shop, one kebap place) still
+  have no shared catalog to join on — would need fuzzy restaurant-identity
+  matching (name + address + cuisine), not just item matching, to extend
+  `match` beyond chains.
 - Decide if the Yemeksepeti ToS risk is acceptable for anything beyond a
   manual/dev-scale prototype before building a scheduled/production scraper.
+- No persistence/scheduling yet — every run re-fetches both platforms live
+  and re-runs matching from scratch; there's no database of known matches to
+  reuse across runs yet.
 
 ## Owner-only steps
 
