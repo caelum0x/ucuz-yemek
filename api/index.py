@@ -89,8 +89,10 @@ def _proxy_budget(budget: float, lat: float, lon: float, limit: int, sort: str) 
             if resp.status != 200:
                 return None
             return json.loads(resp.read())
-    except Exception:  # noqa: BLE001 -- genuinely best-effort: any failure (DNS, TLS, reset,
+    except Exception as exc:  # noqa: BLE001 -- genuinely best-effort: any failure (DNS, TLS, reset,
         # timeout, malformed JSON) must fall back to the live-fetch path, never 500 the request.
+        if os.environ.get("UCUZ_YEMEK_PROXY_DEBUG"):
+            raise HTTPException(status_code=599, detail=f"{type(exc).__name__}: {exc}") from exc
         return None
 
 
