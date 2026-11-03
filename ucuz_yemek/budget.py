@@ -23,18 +23,42 @@ Real v1 scope, documented honestly rather than silently narrowed:
   Yemeksepeti results are chain-only until a real location-search path is
   found, not a silent fake-out -- the API response labels this explicitly.
 
-Ranking: "best value for the budget" is kept deliberately simple for v1 --
-items are sorted by price descending (closest to the budget first, i.e. the
-most food/value you can get without going over), which is a real, honest,
-simple heuristic, not a calorie/portion-size model (no real per-item
-nutrition/weight data exists to rank on anything richer yet).
+Ranking: `sort_mode` picks between real, honest strategies -- "cheapest_first"
+and "priciest_first" are plain price sorts; "closest_to_budget" is the
+original v1 heuristic (most food for the money without going over);
+"best_value" is a real composite score (see ranking.py) over price,
+distance, and rating -- all three already present in Trendyol Go's live
+response and, until this pass, silently discarded. No calorie/portion-size
+model exists (no real per-item nutrition/weight data exists on either
+platform to rank on).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ucuz_yemek import discovery, trendyol_go, yemeksepeti
+from ucuz_yemek import discovery, ranking, trendyol_go, yemeksepeti
+
+SORT_MODES: tuple[str, ...] = ("cheapest_first", "priciest_first", "closest_to_budget", "best_value")
+DEFAULT_SORT_MODE = "closest_to_budget"
+# "best_value" mode only -- excludes condiment/add-on priced items (confirmed
+# live: McDonald's "Ücretli Soslar" section -- ketchup, mayo, even a plastic
+# bag charge -- all price between 1-15 TRY) from being ranked as someone's
+# "best value meal." No real menu-category field reliably distinguishes
+# meals from add-ons across different restaurants' own section naming, so
+# this is a real but deliberately simple price-floor heuristic, not a food
+# classifier -- documented honestly, not hidden. Does NOT apply to
+# cheapest_first/priciest_first/closest_to_budget, which honestly sort by
+# raw price with no claim to be curating "real meals."
+#
+# Honest v1 limitation: this only clears literal condiment/bag-fee pricing
+# (confirmed live: 1-15 TRY on Trendyol). It does NOT reliably separate
+# "snack/drink" from "full entree" -- confirmed live: Yemeksepeti prices its
+# own sauces/add-ons higher (~30 TRY) than this floor, so some still clear
+# it. A real meal-vs-snack classifier would need a consistent cross-platform
+# menu-category field, which doesn't exist (see plans/ucuz-yemek.md). Not
+# silently papered over -- flagged here and in the API's scope_note.
+MIN_MEAL_PRICE_TRY = 20.0
 
 # Real chains independently confirmed reachable on Yemeksepeti's public
 # restaurant sitemap during this session (2026-11-03) -- see
@@ -54,6 +78,12 @@ class AffordableItem:
     item_name: str
     price_try: float
     section: str | None = None
+    # Real fields from the live Trendyol Go response (restaurant['location']
+    # ['distance'] / restaurant['rating']), already fetched today and
+    # previously discarded. Yemeksepeti has neither field anywhere in
+    # yemeksepeti.py's scraper -- stays None there, never fabricated.
+    distance_km: float | None = None
+    rating: float | None = None
 
 
 @dataclass(frozen=True)
@@ -89,16 +119,33 @@ def _trendyol_affordable_items(
 ) -> tuple[list[AffordableItem], list[str]]:
     """Real items at or under budget from the real nearest Trendyol Go
     restaurants. One restaurant's menu failing (closed, empty, transient
-    error) never kills the whole search -- it's just skipped."""
+    error) never kills the whole search -- it's just skipped.
+
+    The raw search response is NOT distance-sorted -- confirmed live
+    2026-11-03 (see plans/ucuz-yemek.md): several top slots carry
+    `sponsored: true` and genuinely closer restaurants sort below farther
+    ones. Sorting by the real `location.distance` field before slicing to
+    `restaurant_cap` is the actual fix for "results aren't cheapest/closest
+    first, they're relevance/sponsored first.\""""
     items: list[AffordableItem] = []
     checked: list[str] = []
     try:
-        restaurants = trendyol_go.search_restaurants(latitude, longitude)[:restaurant_cap]
+        all_restaurants = trendyol_go.search_restaurants(latitude, longitude)
     except Exception as exc:
         raise RuntimeError(f"trendyol_go.search_restaurants failed: {exc}") from exc
+
+    all_restaurants = sorted(
+        all_restaurants, key=lambda r: (r.get("location") or {}).get("distance", float("inf"))
+    )
+    restaurants = [
+        r for r in all_restaurants if (r.get("minBasketPrice") or 0) <= budget_try
+    ][:restaurant_cap]
+
     for restaurant in restaurants:
         name = restaurant.get("name") or "?"
         checked.append(name)
+        distance_km = (restaurant.get("location") or {}).get("distance")
+        rating = restaurant.get("rating")
         try:
             menu = trendyol_go.get_restaurant_menu(restaurant["id"], latitude, longitude)
         except Exception:
@@ -113,6 +160,8 @@ def _trendyol_affordable_items(
                         item_name=entry["name"],
                         price_try=price,
                         section=entry.get("section"),
+                        distance_km=distance_km,
+                        rating=rating,
                     )
                 )
     return items, checked
@@ -159,15 +208,52 @@ def _yemeksepeti_affordable_items(
     return items, checked
 
 
+def _sort_items(items: list[AffordableItem], sort_mode: str) -> list[AffordableItem]:
+    if sort_mode == "cheapest_first":
+        items.sort(key=lambda item: (item.price_try, item.item_name))
+    elif sort_mode == "priciest_first":
+        items.sort(key=lambda item: (-item.price_try, item.item_name))
+    elif sort_mode == "closest_to_budget":
+        # Original v1 heuristic: most food for the money without going over.
+        items.sort(key=lambda item: (-item.price_try, item.item_name))
+    elif sort_mode == "best_value":
+        items = [item for item in items if item.price_try >= MIN_MEAL_PRICE_TRY]
+        if not items:
+            return items
+        prices = [item.price_try for item in items]
+        price_range = (min(prices), max(prices))
+        distances = [item.distance_km for item in items if item.distance_km is not None]
+        distance_range = (min(distances), max(distances)) if distances else None
+        ratings = [item.rating for item in items if item.rating is not None]
+        rating_range = (min(ratings), max(ratings)) if ratings else None
+        scored = [
+            (
+                ranking.value_score(
+                    item.price_try, item.distance_km, item.rating, price_range, distance_range, rating_range
+                ),
+                item,
+            )
+            for item in items
+        ]
+        scored.sort(key=lambda pair: (-pair[0], pair[1].item_name))
+        items = [item for _, item in scored]
+    else:
+        raise ValueError(f"unknown sort_mode {sort_mode!r}, expected one of {SORT_MODES}")
+    return items
+
+
 def find_affordable_items(
     budget_try: float,
     latitude: float,
     longitude: float,
     restaurant_cap: int = DEFAULT_TRENDYOL_RESTAURANT_CAP,
     yemeksepeti_chains: tuple[str, ...] = CURATED_YEMEKSEPETI_CHAINS,
+    sort_mode: str = DEFAULT_SORT_MODE,
 ) -> BudgetSearchResult:
     """Real, live items the user can actually afford right now, from both
-    platforms, ranked closest-to-budget first. Never fabricates a
+    platforms. `sort_mode` picks the real ranking strategy (see SORT_MODES /
+    the module docstring) -- defaults to the original v1 "closest to budget"
+    heuristic for backward compatibility. Never fabricates a
     restaurant/item/price -- a platform that returns nothing live just
     contributes zero items to the result. A platform going fully offline
     (e.g. its own anti-bot layer 403ing this server's IP) degrades to zero
@@ -176,6 +262,8 @@ def find_affordable_items(
     if BOTH platforms are down, since there would be nothing real to return."""
     if budget_try <= 0:
         raise ValueError("budget_try must be positive")
+    if sort_mode not in SORT_MODES:
+        raise ValueError(f"unknown sort_mode {sort_mode!r}, expected one of {SORT_MODES}")
 
     platform_errors: dict[str, str] = {}
 
@@ -202,9 +290,7 @@ def find_affordable_items(
         )
 
     all_items = _dedupe(trendyol_items + yemeksepeti_items)
-    # Best value for the budget, v1 heuristic: closest to the budget first
-    # (most food for the money), cheapest first as the tiebreak when tied.
-    all_items.sort(key=lambda item: (-item.price_try, item.item_name))
+    all_items = _sort_items(all_items, sort_mode)
 
     return BudgetSearchResult(
         budget_try=budget_try,

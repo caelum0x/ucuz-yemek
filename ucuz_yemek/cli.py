@@ -174,7 +174,7 @@ def cmd_budget(args: argparse.Namespace) -> int:
     print("=" * 60)
     print()
     print(f"Searching live near ({args.lat}, {args.lon}) ...")
-    result = budget_module.find_affordable_items(args.budget, args.lat, args.lon)
+    result = budget_module.find_affordable_items(args.budget, args.lat, args.lon, sort_mode=args.sort)
     print(f"  Trendyol Go restaurants checked: {', '.join(result.trendyol_restaurants_checked)}")
     print(f"  Yemeksepeti chains checked: {', '.join(result.yemeksepeti_chains_checked)}")
     for platform, error in result.platform_errors.items():
@@ -189,7 +189,12 @@ def cmd_budget(args: argparse.Namespace) -> int:
     print(f"{len(result.items)} real affordable items found, top {len(top)} by value:")
     print()
     for item in top:
-        print(f"    [{item.platform}] {item.restaurant_name} — {item.item_name}: {item.price_try} TRY")
+        distance = f", {item.distance_km:.1f} km" if item.distance_km is not None else ""
+        rating = f", {item.rating:.1f}★" if item.rating is not None else ""
+        print(
+            f"    [{item.platform}] {item.restaurant_name} — {item.item_name}: "
+            f"{item.price_try} TRY{distance}{rating}"
+        )
     return 0
 
 
@@ -230,6 +235,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_budget.add_argument("--lat", type=float, default=41.0422)  # Beşiktaş, İstanbul
     p_budget.add_argument("--lon", type=float, default=29.0061)
     p_budget.add_argument("--limit", type=int, default=20)
+    p_budget.add_argument(
+        "--sort", choices=budget_module.SORT_MODES, default=budget_module.DEFAULT_SORT_MODE
+    )
     p_budget.set_defaults(func=cmd_budget)
 
     return parser
