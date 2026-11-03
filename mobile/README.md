@@ -90,6 +90,47 @@ Android (`expo run:android`) was not run this pass — iOS was sufficient to
 find and fix the one real cross-platform native-build blocker (the patched
 Swift file is Apple-only code, doesn't affect Android).
 
+## Verified 2026-11-04: real Android Emulator build — first time, no code bug found
+
+`npx expo run:android` was actually run against a real booted Android
+emulator (Pixel 6, API 35, `emulator-5554`) for the first time this pass.
+`npm install` applied the existing `expo-modules-jsi+58.0.22.patch` as a
+harmless no-op (it's Apple/Swift-only code, doesn't touch the Android build).
+
+**Outcome: the Gradle/Kotlin native build succeeded on its own** —
+`BUILD SUCCESSFUL in 6m 26s` (176 tasks, cold build, SDK 37/NDK
+27.1.12297006/Kotlin 2.2.10), producing a working `app-debug.apk`. No source
+patch was needed on Android; the Swift 6 bug patched for iOS doesn't exist
+on this platform.
+
+One transient (non-code) issue on the very first cold run: Expo CLI's
+post-build ADB device-property poll (`CommandError: Expo stopped waiting
+for the ADB device property/boot query operation to finish`) timed out
+after the 6.5-minute cold Gradle build — not a build failure, just the CLI's
+own boot-query timeout firing while the emulator was still responsive
+(`adb shell getprop sys.boot_completed` returned `1` throughout). Re-running
+`npx expo run:android` with the now-warm Gradle cache finished in 4s and
+installed/launched cleanly, confirming this was a timing fluke under load,
+not a real blocker — nothing to patch here, only something to note in case
+a future cold-build pass hits it again.
+
+After that: Metro bundled 723 modules with zero JS errors, the app launched
+and rendered correctly (screenshot-verified: budget input defaulting to
+`300`, 4 Istanbul district chips + "Konumumu kullan", 4 sort options, submit
+button, Turkish copy, dark theme — matches iOS/web). Tapped "Ne yiyebilirim,
+göster" via `adb shell input tap`: a real live request fired to
+`https://ucuz-yemek.ereboslab.com/api/budget` (the same `API_BASE_URL` in
+`lib/api.ts` used by iOS/web, confirmed from source — this backend is the
+post-Vercel-migration box, not a mock) and real results rendered on screen,
+screenshot-verified: Domino's (`10'lu Jalapeno'lu Domino's Roll`, `10'lu
+Sucuklu Domino's Roll`, `Bol Peynirli Ekmek`), Subway (`Egelim (15 cm) Menü`
+via both Yemeksepeti and a real Trendyol Go listing with real distance/rating
+— `Subway (Cihannüma)`, `0.9 km`, `4.2★`), and Burger King (`Kids Cheese`),
+all real prices at `300 TRY`. This is full end-to-end confirmation: Android
+native build → live backend fetch → real rendered results.
+
+**Android is now verified working end-to-end, same standard as iOS.**
+
 ## Not done yet (honest scope)
 
 - Not submitted to TestFlight/Play Console — no app-store packaging
