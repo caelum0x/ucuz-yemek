@@ -64,13 +64,21 @@ def get_budget(
     lat: float = Query(..., ge=-90, le=90, description="Latitude, e.g. 41.0422"),
     lon: float = Query(..., ge=-180, le=180, description="Longitude, e.g. 29.0061"),
     limit: int = Query(30, ge=1, le=MAX_RESULTS, description="Max items to return, ranked by value"),
+    sort: str = Query(
+        budget_module.DEFAULT_SORT_MODE,
+        description="cheapest_first | priciest_first | closest_to_budget | best_value",
+    ),
 ) -> JSONResponse:
     """Real, live items at or under `budget` TRY near (`lat`, `lon`), from
     both platforms (see ucuz_yemek/budget.py for each platform's real,
     honestly-scoped coverage). Every number is a live fetch made during this
     request -- there is no cache/mock fallback."""
+    if sort not in budget_module.SORT_MODES:
+        raise HTTPException(
+            status_code=400, detail=f"unknown sort {sort!r}, expected one of {budget_module.SORT_MODES}"
+        )
     try:
-        result = budget_module.find_affordable_items(budget, lat, lon)
+        result = budget_module.find_affordable_items(budget, lat, lon, sort_mode=sort)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -87,6 +95,8 @@ def get_budget(
             "restaurant_name": item.restaurant_name,
             "item_name": item.item_name,
             "price_try": item.price_try,
+            "distance_km": item.distance_km,
+            "rating": item.rating,
         }
         for item in result.items[:limit]
     ]
@@ -96,16 +106,20 @@ def get_budget(
             "budget_try": result.budget_try,
             "latitude": result.latitude,
             "longitude": result.longitude,
+            "sort": sort,
             "trendyol_restaurants_checked": result.trendyol_restaurants_checked,
             "yemeksepeti_chains_checked": result.yemeksepeti_chains_checked,
             "total_affordable_items_found": len(result.items),
             "items": items,
             "platform_errors": result.platform_errors,
             "scope_note": (
-                "Trendyol Go: real nearest restaurants to this location. "
-                "Yemeksepeti: a curated set of popular chains (no real "
-                "location-search API exists on that platform yet) -- see "
-                "README.md for why."
+                "Trendyol Go: real nearest restaurants to this location, sorted by real "
+                "distance (not the platform's own relevance/sponsored order). Yemeksepeti: "
+                "a curated set of popular chains (no real location-search API exists on "
+                "that platform yet, so no distance/rating data either) -- see README.md "
+                "for why. sort=best_value excludes sub-20-TRY condiment/add-on items and "
+                "combines price, distance, and rating into one score -- see "
+                "ucuz_yemek/ranking.py."
             ),
         }
     )

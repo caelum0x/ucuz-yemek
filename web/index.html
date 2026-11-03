@@ -163,6 +163,7 @@
     text-overflow: ellipsis;
   }
   .item-restaurant { font-size: 13px; color: var(--text-dim); }
+  .item-meta { font-size: 12px; color: var(--text-dim); opacity: 0.8; }
   .item-price-wrap { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .platform-tag {
     font-size: 11px;
@@ -262,10 +263,20 @@
         <label for="lon">Longitude</label>
         <input type="number" id="lon" name="lon" step="0.0001" placeholder="29.0061">
       </div>
+      <div class="field">
+        <label for="sort">Sort by</label>
+        <select id="sort" name="sort">
+          <option value="closest_to_budget" selected>Most food for the money</option>
+          <option value="best_value">Best value (price + distance + rating)</option>
+          <option value="cheapest_first">Cheapest first</option>
+          <option value="priciest_first">Priciest first</option>
+        </select>
+      </div>
     </div>
     <button class="submit" type="submit" id="submit-btn">See what I can eat</button>
-    <p class="scope-note">Trendyol Go: real nearest restaurants to this location. Yemeksepeti: a
-      curated set of popular chains, since that platform has no real location search yet.</p>
+    <p class="scope-note">Trendyol Go: real nearest restaurants to this location, sorted by real
+      distance (not the platform's own relevance/sponsored order). Yemeksepeti: a curated set of
+      popular chains, since that platform has no real location search yet.</p>
   </form>
 
   <section class="results" id="results" aria-live="polite"></section>
@@ -353,11 +364,18 @@
 
     var itemsHtml = data.items
       .map(function (item) {
+        var meta = [];
+        if (item.distance_km != null) meta.push(item.distance_km.toFixed(1) + " km");
+        if (item.rating != null) meta.push(item.rating.toFixed(1) + "★");
+        var metaHtml = meta.length
+          ? '<span class="item-meta">' + escapeHtml(meta.join(" · ")) + "</span>"
+          : "";
         return (
           '<li class="item">' +
           '<div class="item-info">' +
           '<span class="item-name">' + escapeHtml(item.item_name) + "</span>" +
           '<span class="item-restaurant">' + escapeHtml(item.restaurant_name) + "</span>" +
+          metaHtml +
           "</div>" +
           '<div class="item-price-wrap">' +
           '<span class="platform-tag">' + escapeHtml(platformLabel(item.platform)) + "</span>" +
@@ -401,10 +419,12 @@
     submitBtn.textContent = "Searching live...";
     skeleton();
 
+    var sort = document.getElementById("sort").value;
     var url =
       "/api/budget?budget=" + encodeURIComponent(budget) +
       "&lat=" + encodeURIComponent(lat) +
       "&lon=" + encodeURIComponent(lon) +
+      "&sort=" + encodeURIComponent(sort) +
       "&limit=30";
 
     fetch(url)
