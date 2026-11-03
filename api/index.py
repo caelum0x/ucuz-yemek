@@ -21,7 +21,12 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
+import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -52,10 +57,40 @@ app.add_middleware(
 MAX_BUDGET_TRY = 10_000.0
 MAX_RESULTS = 60
 
+# When set, /api/budget proxies to the standalone backend (backend/server.py,
+# deployed on one of the portfolio's own Oracle boxes -- see
+# infra-box/stacks/ucuz-yemek-backend) instead of live-fetching Trendyol
+# Go/Yemeksepeti itself. Real reason: Yemeksepeti's anti-bot layer 403s
+# Vercel's own hosting IP on a live call (confirmed in production), but not
+# that box's IP -- the backend keeps a Postgres cache warm from there. Unset
+# (e.g. local dev) falls through to the original live-fetch-only behaviour,
+# unchanged.
+UCUZ_YEMEK_BACKEND_URL = os.environ.get("UCUZ_YEMEK_BACKEND_URL", "").rstrip("/")
+
 
 @app.get("/api/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def _proxy_budget(budget: float, lat: float, lon: float, limit: int, sort: str) -> dict[str, Any] | None:
+    """Best-effort proxy to UCUZ_YEMEK_BACKEND_URL's own /api/budget. Returns
+    None on any failure (network error, non-200, bad JSON) so the caller can
+    fall back to the live-fetch path rather than erroring out -- the backend
+    being briefly unreachable should never be worse than the pre-existing
+    behaviour."""
+    if not UCUZ_YEMEK_BACKEND_URL:
+        return None
+    qs = urllib.parse.urlencode({"budget": budget, "lat": lat, "lon": lon, "limit": limit, "sort": sort})
+    url = f"{UCUZ_YEMEK_BACKEND_URL}/api/budget?{qs}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ucuz-yemek-vercel-proxy/1"})
+        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310 -- our own backend, fixed URL
+            if resp.status != 200:
+                return None
+            return json.loads(resp.read())
+    except (urllib.error.URLError, TimeoutError, ValueError):
+        return None
 
 
 @app.get("/api/budget")
@@ -77,6 +112,11 @@ def get_budget(
         raise HTTPException(
             status_code=400, detail=f"unknown sort {sort!r}, expected one of {budget_module.SORT_MODES}"
         )
+
+    proxied = _proxy_budget(budget, lat, lon, limit, sort)
+    if proxied is not None:
+        return JSONResponse(content=proxied)
+
     try:
         result = budget_module.find_affordable_items(budget, lat, lon, sort_mode=sort)
     except ValueError as exc:
