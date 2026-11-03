@@ -64,6 +64,12 @@ class BudgetSearchResult:
     trendyol_restaurants_checked: list[str]
     yemeksepeti_chains_checked: list[str]
     items: list[AffordableItem]
+    # Platform name -> the real error that took it fully offline this
+    # request (e.g. an anti-bot 403 on the hosting IP). A platform in here
+    # contributed zero items, but the OTHER platform's real results still
+    # ship -- one platform going down should never discard data the other
+    # one already fetched successfully.
+    platform_errors: dict[str, str]
 
 
 def _dedupe(items: list[AffordableItem]) -> list[AffordableItem]:
@@ -163,16 +169,37 @@ def find_affordable_items(
     """Real, live items the user can actually afford right now, from both
     platforms, ranked closest-to-budget first. Never fabricates a
     restaurant/item/price -- a platform that returns nothing live just
-    contributes zero items to the result."""
+    contributes zero items to the result. A platform going fully offline
+    (e.g. its own anti-bot layer 403ing this server's IP) degrades to zero
+    items from that platform plus a `platform_errors` entry -- it never
+    discards the other platform's real, already-fetched results. Only raises
+    if BOTH platforms are down, since there would be nothing real to return."""
     if budget_try <= 0:
         raise ValueError("budget_try must be positive")
 
-    trendyol_items, trendyol_checked = _trendyol_affordable_items(
-        budget_try, latitude, longitude, restaurant_cap
-    )
-    yemeksepeti_items, yemeksepeti_checked = _yemeksepeti_affordable_items(
-        budget_try, yemeksepeti_chains, DEFAULT_YEMEKSEPETI_ITEM_LIMIT
-    )
+    platform_errors: dict[str, str] = {}
+
+    try:
+        trendyol_items, trendyol_checked = _trendyol_affordable_items(
+            budget_try, latitude, longitude, restaurant_cap
+        )
+    except RuntimeError as exc:
+        trendyol_items, trendyol_checked = [], []
+        platform_errors["trendyol_go"] = str(exc)
+
+    try:
+        yemeksepeti_items, yemeksepeti_checked = _yemeksepeti_affordable_items(
+            budget_try, yemeksepeti_chains, DEFAULT_YEMEKSEPETI_ITEM_LIMIT
+        )
+    except RuntimeError as exc:
+        yemeksepeti_items, yemeksepeti_checked = [], []
+        platform_errors["yemeksepeti"] = str(exc)
+
+    if len(platform_errors) == 2:
+        raise RuntimeError(
+            f"both platforms failed: trendyol_go: {platform_errors['trendyol_go']}; "
+            f"yemeksepeti: {platform_errors['yemeksepeti']}"
+        )
 
     all_items = _dedupe(trendyol_items + yemeksepeti_items)
     # Best value for the budget, v1 heuristic: closest to the budget first
@@ -186,4 +213,5 @@ def find_affordable_items(
         trendyol_restaurants_checked=trendyol_checked,
         yemeksepeti_chains_checked=yemeksepeti_checked,
         items=all_items,
+        platform_errors=platform_errors,
     )

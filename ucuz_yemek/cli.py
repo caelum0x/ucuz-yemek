@@ -177,6 +177,8 @@ def cmd_budget(args: argparse.Namespace) -> int:
     result = budget_module.find_affordable_items(args.budget, args.lat, args.lon)
     print(f"  Trendyol Go restaurants checked: {', '.join(result.trendyol_restaurants_checked)}")
     print(f"  Yemeksepeti chains checked: {', '.join(result.yemeksepeti_chains_checked)}")
+    for platform, error in result.platform_errors.items():
+        print(f"  WARNING: {platform} is offline this run, excluded (not fabricated): {error}")
     print()
 
     if not result.items:

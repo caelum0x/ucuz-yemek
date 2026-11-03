@@ -99,6 +99,7 @@ def get_budget(
             "yemeksepeti_chains_checked": result.yemeksepeti_chains_checked,
             "total_affordable_items_found": len(result.items),
             "items": items,
+            "platform_errors": result.platform_errors,
             "scope_note": (
                 "Trendyol Go: real nearest restaurants to this location. "
                 "Yemeksepeti: a curated set of popular chains (no real "

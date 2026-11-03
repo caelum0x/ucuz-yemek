@@ -184,6 +184,13 @@
     font-size: 15px;
   }
   .state-box.error { color: #e5a3a3; border-color: #4a2a2a; }
+  .state-box.warning {
+    color: #e5c07b;
+    border-color: #4a3a1a;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
 
   .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
   .skeleton-row {
@@ -290,10 +297,24 @@
       '<div class="state-box error">Search failed. ' + escapeHtml(message) + '</div>';
   }
 
-  function renderEmpty() {
+  function renderEmpty(platformErrors) {
     resultsEl.innerHTML =
+      platformWarningHtml(platformErrors) +
       '<div class="state-box">No real affordable items found for this budget and location ' +
       "right now. Try a larger budget or a different location.</div>";
+  }
+
+  function platformWarningHtml(platformErrors) {
+    if (!platformErrors) return "";
+    var names = Object.keys(platformErrors);
+    if (names.length === 0) return "";
+    var list = names.map(platformLabel).join(" and ");
+    return (
+      '<div class="state-box warning">' +
+      escapeHtml(list) +
+      " is temporarily unavailable, so results below are from the other platform only " +
+      "(nothing is fabricated to fill the gap).</div>"
+    );
   }
 
   function escapeHtml(value) {
@@ -308,7 +329,7 @@
 
   function renderResults(data) {
     if (!data.items || data.items.length === 0) {
-      renderEmpty();
+      renderEmpty(data.platform_errors);
       return;
     }
 
@@ -338,6 +359,7 @@
       .join("");
 
     resultsEl.innerHTML =
+      platformWarningHtml(data.platform_errors) +
       '<p class="results-meta">' + escapeHtml(metaText) + "</p>" +
       '<ul class="items">' + itemsHtml + "</ul>";
   }
