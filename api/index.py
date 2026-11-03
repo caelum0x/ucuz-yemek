@@ -40,7 +40,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ucuz_yemek import budget as budget_module  # noqa: E402
-from ucuz_yemek import service  # noqa: E402
+from ucuz_yemek import matching, service  # noqa: E402
 from ucuz_yemek.pages import router as pages_router  # noqa: E402
 
 app = FastAPI(
@@ -184,8 +184,27 @@ def get_match(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Upstream real-data fetch failed: {exc}") from exc
 
+    return JSONResponse(
+        content={
+            "chain": result.chain,
+            "trendyol_restaurant": {
+                "name": result.trendyol_restaurant_name,
+                "id": result.trendyol_restaurant_id,
+            },
+            "yemeksepeti_restaurant_url": result.yemeksepeti_url,
+            "trendyol_item_count": result.trendyol_item_count,
+            "yemeksepeti_item_count": result.yemeksepeti_item_count,
+            **_serialize_match_summary(result.summary),
+        }
+    )
+
+
+def _serialize_match_summary(summary: matching.MatchSummary) -> dict[str, Any]:
+    """Shared real-match-result shaping used by both /api/match (chain-name
+    lookup) and /api/match-by-url (direct restaurant identities) -- same
+    underlying matching.MatchSummary either way, no duplicated logic."""
     matches: list[dict[str, Any]] = []
-    for pair in result.summary.matches:
+    for pair in summary.matches:
         a, b = pair.item_a, pair.item_b
         matches.append(
             {
@@ -199,10 +218,48 @@ def get_match(
                 "confidence": round(pair.confidence, 3),
             }
         )
+    return {
+        "candidate_pairs": summary.candidate_pairs,
+        "auto_accepted": summary.auto_accepted,
+        "jev_accepted": summary.jev_accepted,
+        "jev_rejected": summary.jev_rejected,
+        "needs_review_count": len(summary.needs_review),
+        "matches": matches,
+    }
+
+
+@app.get("/api/match-by-url")
+def get_match_by_url(
+    trendyol_restaurant: str = Query(
+        ...,
+        min_length=1,
+        description=(
+            "Trendyol Go restaurant id, or any real URL/deeplink containing one "
+            "(e.g. a tgoyemek.com restaurant URL, or RestaurantId=NNN deeplink)"
+        ),
+    ),
+    yemeksepeti_url: str = Query(
+        ..., min_length=1, description="Full Yemeksepeti restaurant URL, e.g. https://www.yemeksepeti.com/restaurant/..."
+    ),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude for the Trendyol Go menu fetch"),
+    lon: float = Query(..., ge=-180, le=180, description="Longitude for the Trendyol Go menu fetch"),
+) -> JSONResponse:
+    """Real same-item cross-platform match between two SPECIFIC restaurants
+    the caller already knows about -- one on each platform -- bypassing the
+    chain-name lookup /api/match depends on (ucuz_yemek/discovery.py). This
+    is the real fix for the gap this repo's README has always flagged: two
+    independent local restaurants with no shared chain name to join on.
+    Same real live-menu-fetch + matching.py pipeline either way, never
+    fabricated."""
+    try:
+        result = service.run_match_by_urls(trendyol_restaurant, yemeksepeti_url, lat, lon)
+    except service.MatchServiceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Upstream real-data fetch failed: {exc}") from exc
 
     return JSONResponse(
         content={
-            "chain": result.chain,
             "trendyol_restaurant": {
                 "name": result.trendyol_restaurant_name,
                 "id": result.trendyol_restaurant_id,
@@ -210,12 +267,7 @@ def get_match(
             "yemeksepeti_restaurant_url": result.yemeksepeti_url,
             "trendyol_item_count": result.trendyol_item_count,
             "yemeksepeti_item_count": result.yemeksepeti_item_count,
-            "candidate_pairs": result.summary.candidate_pairs,
-            "auto_accepted": result.summary.auto_accepted,
-            "jev_accepted": result.summary.jev_accepted,
-            "jev_rejected": result.summary.jev_rejected,
-            "needs_review_count": len(result.summary.needs_review),
-            "matches": matches,
+            **_serialize_match_summary(result.summary),
         }
     )
 
