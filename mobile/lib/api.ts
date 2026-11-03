@@ -1,11 +1,13 @@
-// Thin client over the ALREADY LIVE Ucuz Yemek backend (FastAPI on Vercel).
-// No business logic lives here -- this only calls the same real
-// /api/budget endpoint the web frontend (web/index.html) calls, and shapes
-// the response for the native UI. See ../../README.md and
-// ~/products/plans/ucuz-yemek.md for the backend's real data sources
-// (Trendyol Go live search, Yemeksepeti curated-chain sitemap lookup).
+// Thin client over the ALREADY LIVE Ucuz Yemek backend (FastAPI, self-hosted
+// on railyard-box -- migrated off Vercel 2026-11-04, see
+// ~/products/plans/ucuz-yemek.md: Vercel account is free/Hobby tier, not for
+// real production traffic). No business logic lives here -- this only calls
+// the same real /api/budget endpoint the web frontend (web/index.html)
+// calls, and shapes the response for the native UI. See ../../README.md for
+// the backend's real data sources (Trendyol Go live search, Yemeksepeti
+// curated-chain sitemap lookup).
 
-export const API_BASE_URL = "https://ucuz-yemek.vercel.app";
+export const API_BASE_URL = "https://ucuz-yemek.ereboslab.com";
 
 export type SortMode =
   | "closest_to_budget"

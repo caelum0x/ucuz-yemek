@@ -1,7 +1,7 @@
 // Ucuz Yemek -- native client.
 //
 // This is deliberately a THIN CLIENT over the already-live backend
-// (https://ucuz-yemek.vercel.app, same FastAPI app the web frontend talks
+// (https://ucuz-yemek.ereboslab.com, same FastAPI app the web frontend talks
 // to) -- no business logic, no local matching/ranking, no mock data. Every
 // search result on screen is a live fetch made at request time, same as the
 // web version. See lib/api.ts and ~/products/plans/ucuz-yemek.md.
