@@ -86,7 +86,10 @@ def _trendyol_affordable_items(
     error) never kills the whole search -- it's just skipped."""
     items: list[AffordableItem] = []
     checked: list[str] = []
-    restaurants = trendyol_go.search_restaurants(latitude, longitude)[:restaurant_cap]
+    try:
+        restaurants = trendyol_go.search_restaurants(latitude, longitude)[:restaurant_cap]
+    except Exception as exc:
+        raise RuntimeError(f"trendyol_go.search_restaurants failed: {exc}") from exc
     for restaurant in restaurants:
         name = restaurant.get("name") or "?"
         checked.append(name)
@@ -117,14 +120,19 @@ def _yemeksepeti_affordable_items(
     true location search yet)."""
     items: list[AffordableItem] = []
     checked: list[str] = []
+    failures = 0
     for chain in chains:
-        url = discovery.find_yemeksepeti_restaurant_url(chain)
+        try:
+            url = discovery.find_yemeksepeti_restaurant_url(chain)
+        except Exception as exc:
+            raise RuntimeError(f"discovery.find_yemeksepeti_restaurant_url({chain!r}) failed: {exc}") from exc
         if url is None:
             continue
         checked.append(chain)
         try:
             html = yemeksepeti.fetch_restaurant_html(url)
         except Exception:
+            failures += 1
             continue
         restaurant_name = chain.replace("-", " ").title()
         for entry in yemeksepeti.extract_priced_items(html, limit=item_limit):
@@ -138,6 +146,10 @@ def _yemeksepeti_affordable_items(
                         price_try=price,
                     )
                 )
+    if chains and failures == len(chains) and not items:
+        raise RuntimeError(
+            f"yemeksepeti.fetch_restaurant_html failed for all {len(chains)} curated chains"
+        )
     return items, checked
 
 

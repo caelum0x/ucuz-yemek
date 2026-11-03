@@ -72,6 +72,11 @@ def get_budget(
         result = budget_module.find_affordable_items(budget, lat, lon)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        # budget_module attributes which upstream platform actually failed
+        # (see _trendyol_affordable_items/_yemeksepeti_affordable_items) --
+        # pass that through instead of a generic "fetch failed".
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:  # real upstream (Trendyol/Yemeksepeti) failure -- never fabricate a fallback
         raise HTTPException(status_code=502, detail=f"Upstream real-data fetch failed: {exc}") from exc
 
