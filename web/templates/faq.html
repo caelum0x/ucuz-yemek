@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Sıkça Sorulan Sorular -- Ucuz Yemek{% endblock %}
+{% block meta_description %}Ucuz Yemek hakkında sıkça sorulan sorular: fiyatlar neden farklı olabilir, hangi şehirler destekleniyor, veriler gerçek mi.{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>Sıkça Sorulan Sorular</h1>
+</header>
+
+<details class="faq">
+  <summary>Fiyatlar neden farklı olabilir?</summary>
+  <p>Trendyol Go ve Yemeksepeti'nin kendi fiyatları, kampanyaları ve komisyon yapıları birbirinden
+    bağımsızdır, bu yüzden aynı ürün iki platformda farklı fiyatlanabilir. Ucuz Yemek bu fiyatı
+    değiştirmez; her iki platformun o anki gerçek, canlı fiyatını olduğu gibi gösterir.</p>
+</details>
+
+<details class="faq">
+  <summary>Hangi şehirler destekleniyor?</summary>
+  <p>Şu an için İstanbul, Ankara, İzmir, Bursa, Antalya, Adana, Konya, Gaziantep, Mersin, Kayseri,
+    Eskişehir, Diyarbakır, Samsun, Denizli, Şanlıurfa, Malatya, Kocaeli (İzmit), Trabzon, Erzurum ve
+    Van için canlı veri doğrulanmış şehir sayfaları var. İstediğiniz herhangi bir koordinat için ana
+    sayfadaki "Özel koordinatlar" seçeneğiyle de canlı arama yapabilirsiniz.</p>
+</details>
+
+<details class="faq">
+  <summary>Veriler gerçek mi, yoksa önceden kaydedilmiş mi?</summary>
+  <p>Her arama, o anda Trendyol Go ve/veya Yemeksepeti'ne yapılan gerçek bir canlı istektir. Hiçbir
+    restoran, ürün adı veya fiyat önceden kaydedilip tekrar sunulmaz ya da uydurulmaz.</p>
+</details>
+
+<details class="faq">
+  <summary>Bir platform neden sonuç vermiyor?</summary>
+  <p>Platformlardan biri geçici olarak erişilemez olduğunda (örneğin bir anti-bot engeli) bu açıkça
+    belirtilir ve sonuçlar sadece diğer, erişilebilen platformdan gösterilir. Her iki platform da
+    aynı anda erişilemezse bu da olduğu gibi bildirilir.</p>
+</details>
+
+<details class="faq">
+  <summary>Neden her şehirde her zincir karşılaştırması çıkmıyor?</summary>
+  <p>Trendyol Go'nun konum araması yalnızca girilen noktaya en yakın restoranları döndürür (isme göre
+    arama yapan bir uç nokta yok), bu yüzden belirli bir zincirin o şehir merkezinde Trendyol Go'da
+    canlı olarak çıkması konuma bağlıdır. Çıkmadığı durumlarda sayfa bunu açıkça belirtir, sahte bir
+    sonuç göstermez.</p>
+</details>
+
+<details class="faq">
+  <summary>Hesap oluşturmam gerekiyor mu?</summary>
+  <p>Hayır. Ucuz Yemek'te hesap, giriş ya da kişisel veri paylaşımı yok -- bkz. <a href="/gizlilik">Gizlilik
+    Politikası</a>.</p>
+</details>
+{% endblock %}

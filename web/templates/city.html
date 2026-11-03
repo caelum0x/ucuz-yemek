@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ city.display_name }}'de {{ budget_try|int }} TL ile Ne Yenir? -- Ucuz Yemek{% endblock %}
+{% block meta_description %}{{ city.display_name }}'de bütçenize uygun, gerçek zamanlı restoran ve ürün fiyatları. Trendyol Go ve Yemeksepeti karşılaştırması, {{ city.display_name }} için.{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>{{ city.display_name }}'de {{ budget_try|int }} TL ile ne yenir?</h1>
+  <p class="sub">{{ city.display_name }}'deki gerçek, canlı restoranlardan bütçenize uyan ürünler --
+    Trendyol Go ve Yemeksepeti'nden tek listede, uydurma veri olmadan.</p>
+</header>
+
+<form class="search" id="search-form" data-lat="{{ city.latitude }}" data-lon="{{ city.longitude }}" style="display:flex;flex-direction:column;gap:16px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
+  <div style="display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:140px;display:flex;flex-direction:column;gap:8px;">
+      <label for="budget" style="font-size:14px;color:var(--text-dim);font-weight:600;">Bütçe (TL)</label>
+      <input type="number" id="budget" name="budget" min="1" max="10000" step="1" value="{{ budget_try|int }}" required inputmode="decimal"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:16px;padding:10px 12px;">
+    </div>
+  </div>
+  <button class="submit" type="submit" id="submit-btn"
+    style="background:var(--text);color:#000;border:none;border-radius:10px;font-family:inherit;font-size:16px;font-weight:600;padding:12px 20px;cursor:pointer;">
+    {{ city.display_name }}'de canlı ara
+  </button>
+  <p style="font-size:13px;color:var(--text-faint);margin:0;">Konum: {{ city.display_name }} ({{ city.latitude }}, {{ city.longitude }}).
+    Trendyol Go: bu noktaya en yakın gerçek restoranlar. Yemeksepeti: bilinen popüler zincirler.</p>
+</form>
+
+<section id="results" aria-live="polite">
+  {% if platform_errors %}
+  <div class="state-box warning">
+    {% for platform in platform_errors %}{{ "Trendyol Go" if platform == "trendyol_go" else "Yemeksepeti" }}{{ ", " if not loop.last else "" }}{% endfor %}
+    şu anda geçici olarak erişilemiyor -- aşağıdaki sonuçlar sadece diğer platformdan (hiçbir şey uydurulmaz).
+  </div>
+  {% endif %}
+
+  {% if items %}
+  <p style="color:var(--text-dim);font-size:14px;">{{ total_found }} gerçek ürün {{ budget_try|int }} TL ve altında bulundu, değere göre en iyi {{ items|length }} tanesi gösteriliyor.</p>
+  <ul class="items">
+    {% for item in items %}
+    <li class="item">
+      <div class="item-info">
+        <span class="item-name">{{ item.item_name }}</span>
+        <span class="item-restaurant">{{ item.restaurant_name }}</span>
+      </div>
+      <div class="item-price-wrap">
+        <span class="platform-tag">{{ "Trendyol Go" if item.platform == "trendyol_go" else "Yemeksepeti" }}</span>
+        <span class="item-price">{{ item.price_try }} TL</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="state-box">Şu anda {{ city.display_name }} için {{ budget_try|int }} TL bütçeyle gerçek, canlı
+    bir sonuç bulunamadı. Daha yüksek bir bütçe deneyin.</div>
+  {% endif %}
+</section>
+
+<h2>{{ city.display_name }}'de zincir fiyat karşılaştırması</h2>
+<ul class="chain-grid">
+  {% for chain in chains %}
+  <li><a href="/karsilastir/{{ chain.slug }}?sehir={{ city.slug }}">{{ chain.display_name }}</a></li>
+  {% endfor %}
+</ul>
+
+<h2>Diğer şehirler</h2>
+<ul class="city-grid">
+  {% for other in cities %}
+  {% if other.slug != city.slug %}
+  <li><a href="/sehir/{{ other.slug }}">{{ other.display_name }}</a></li>
+  {% endif %}
+  {% endfor %}
+</ul>
+
+<script>
+(function () {
+  "use strict";
+  var form = document.getElementById("search-form");
+  var resultsEl = document.getElementById("results");
+  var submitBtn = document.getElementById("submit-btn");
+  var lat = form.getAttribute("data-lat");
+  var lon = form.getAttribute("data-lon");
+
+  function escapeHtml(value) {
+    var div = document.createElement("div");
+    div.textContent = String(value);
+    return div.innerHTML;
+  }
+  function platformLabel(p) { return p === "trendyol_go" ? "Trendyol Go" : "Yemeksepeti"; }
+
+  function renderResults(data) {
+    if (!data.items || data.items.length === 0) {
+      resultsEl.innerHTML = '<div class="state-box">Bu bütçe için gerçek, canlı sonuç bulunamadı.</div>';
+      return;
+    }
+    var itemsHtml = data.items.map(function (item) {
+      return '<li class="item"><div class="item-info">' +
+        '<span class="item-name">' + escapeHtml(item.item_name) + '</span>' +
+        '<span class="item-restaurant">' + escapeHtml(item.restaurant_name) + '</span></div>' +
+        '<div class="item-price-wrap"><span class="platform-tag">' + escapeHtml(platformLabel(item.platform)) + '</span>' +
+        '<span class="item-price">' + item.price_try + ' TL</span></div></li>';
+    }).join("");
+    resultsEl.innerHTML =
+      '<p style="color:var(--text-dim);font-size:14px;">' + data.total_affordable_items_found +
+      ' gerçek ürün bulundu, en iyi ' + data.items.length + ' tanesi gösteriliyor.</p>' +
+      '<ul class="items">' + itemsHtml + '</ul>';
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var budget = parseFloat(document.getElementById("budget").value);
+    if (!budget || budget <= 0) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Canlı aranıyor...";
+    resultsEl.innerHTML = '<div class="state-box">Aranıyor...</div>';
+    fetch("/api/budget?budget=" + encodeURIComponent(budget) + "&lat=" + lat + "&lon=" + lon + "&limit=30")
+      .then(function (r) { return r.json(); })
+      .then(renderResults)
+      .catch(function () { resultsEl.innerHTML = '<div class="state-box">Arama başarısız oldu.</div>'; })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "{{ city.display_name }}'de canlı ara";
+      });
+  });
+})();
+</script>
+{% endblock %}

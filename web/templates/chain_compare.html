@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ chain.display_name }} Fiyat Karşılaştırması -- {{ city.display_name }} | Ucuz Yemek{% endblock %}
+{% block meta_description %}{{ city.display_name }}'de {{ chain.display_name }} için Trendyol Go ve Yemeksepeti arasında gerçek, canlı ürün fiyat karşılaştırması.{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>{{ chain.display_name }} -- {{ city.display_name }}: Trendyol Go mu Yemeksepeti mi?</h1>
+  <p class="sub">{{ city.display_name }}'deki gerçek, canlı {{ chain.display_name }} şubesinden aynı ürünlerin
+    her iki platformdaki gerçek fiyatları, uydurma veri olmadan.</p>
+</header>
+
+{% if result %}
+<p style="color:var(--text-dim);font-size:14px;">Trendyol Go şubesi: <strong>{{ result.trendyol_restaurant_name }}</strong>.
+  {{ result.summary.matches|length }} gerçek eşleşen ürün bulundu ({{ result.trendyol_item_count }} Trendyol Go,
+  {{ result.yemeksepeti_item_count }} Yemeksepeti ürünü arasından).</p>
+
+{% if result.summary.matches %}
+<table class="compare">
+  <thead>
+    <tr><th>Ürün</th><th>Trendyol Go</th><th>Yemeksepeti</th><th>Daha ucuz</th></tr>
+  </thead>
+  <tbody>
+    {% for m in result.summary.matches %}
+    <tr>
+      <td>{{ m.item_a.name }}</td>
+      <td class="price{{ ' cheaper' if m.cheaper_platform == 'trendyol_go' else '' }}">{{ m.item_a.price_try }} TL</td>
+      <td class="price{{ ' cheaper' if m.cheaper_platform == 'yemeksepeti' else '' }}">{{ m.item_b.price_try }} TL</td>
+      <td>{{ "Trendyol Go" if m.cheaper_platform == "trendyol_go" else ("Yemeksepeti" if m.cheaper_platform == "yemeksepeti" else "Eşit") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="state-box">Bu şubede iki platform arasında güvenilir şekilde eşleşen ortak bir ürün bulunamadı
+  şu anda (menüler gerçek ama aynı ürünler değil).</div>
+{% endif %}
+
+{% else %}
+<div class="state-box">{{ city.display_name }} için canlı bir {{ chain.display_name }} eşleşmesi şu anda
+  bulunamadı{{ ": " + error if error else "." }} Trendyol Go'nun konum araması yalnızca en yakın
+  restoranları döndürüyor, bu yüzden her şehir merkezinde her zincir çıkmayabilir -- hiçbir şey uydurulmaz.</div>
+{% endif %}
+
+<h2>{{ chain.display_name }}'i başka şehirde karşılaştır</h2>
+<ul class="city-grid">
+  {% for other in cities %}
+  {% if other.slug != city.slug %}
+  <li><a href="/karsilastir/{{ chain.slug }}?sehir={{ other.slug }}">{{ other.display_name }}</a></li>
+  {% endif %}
+  {% endfor %}
+</ul>
+
+<h2>{{ city.display_name }}'de başka bir zincir karşılaştır</h2>
+<ul class="chain-grid">
+  {% for other in chains %}
+  {% if other.slug != chain.slug %}
+  <li><a href="/karsilastir/{{ other.slug }}?sehir={{ city.slug }}">{{ other.display_name }}</a></li>
+  {% endif %}
+  {% endfor %}
+</ul>
+{% endblock %}

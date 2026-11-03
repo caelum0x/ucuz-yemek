@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Hakkımızda -- Ucuz Yemek{% endblock %}
+{% block meta_description %}Ucuz Yemek nedir, hangi gerçek veriyi kullanır ve nasıl çalışır: Trendyol Go ve Yemeksepeti'nden canlı, uydurulmamış fiyat verisi.{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>Hakkımızda</h1>
+  <p class="sub">Ucuz Yemek, "şu an elimdeki parayla ne yiyebilirim?" sorusuna gerçek, canlı veriyle
+    cevap veren tek sayfalık bir araçtır.</p>
+</header>
+
+<h2>Ne işe yarar</h2>
+<p class="lead">Bir bütçe (TL) ve bir konum girersiniz; Ucuz Yemek o anda Trendyol Go ve Yemeksepeti'ne
+  gerçek, canlı istekler atar ve bütçenize uyan gerçek ürünleri, gerçek restoran adlarıyla ve gerçek
+  fiyatlarla tek bir listede gösterir. Hiçbir restoran, ürün veya fiyat önceden kaydedilmez ya da
+  uydurulmaz -- her arama anlık bir canlı sorgudur.</p>
+
+<h2>Veri kaynakları ve yöntem</h2>
+<p class="lead"><strong>Trendyol Go:</strong> girdiğiniz konuma en yakın gerçek restoranların canlı menü
+  ve fiyat verisi, Trendyol Go'nun kendi herkese açık arama uç noktasından çekilir.</p>
+<p class="lead"><strong>Yemeksepeti:</strong> bu platformda konuma göre genel bir restoran arama API'si
+  henüz yok, bu yüzden Subway, Burger King, McDonald's, KFC ve Domino's gibi zaten canlı ve erişilebilir
+  olduğu doğrulanmış popüler zincirlerin gerçek, herkese açık sitemap verisinden fiyatlar çekilir. Bu, v1
+  için dürüst bir kapsam sınırlamasıdır -- gizlenmiş bir eksiklik değil.</p>
+<p class="lead"><strong>Zincir karşılaştırması:</strong> aynı zincirin Trendyol Go ve Yemeksepeti'ndeki
+  gerçek şubelerinden aynı ürünleri eşleştirmek için önce basit metin benzerliği, belirsiz durumlarda
+  ise gerçek bir yapay zeka hakemliği (Jev/TypeSafe) kullanılır -- hiçbir eşleşme rastgele uydurulmaz.</p>
+
+<h2>Bir platform yanıt vermezse ne olur</h2>
+<p class="lead">Bir platform geçici olarak erişilemez olursa (örneğin bir anti-bot engeli), bu açıkça
+  belirtilir ve sonuçlar sadece diğer platformdan gösterilir -- eksik veri sahte veriyle doldurulmaz.</p>
+{% endblock %}

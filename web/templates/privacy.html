@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Gizlilik Politikası -- Ucuz Yemek{% endblock %}
+{% block meta_description %}Ucuz Yemek'in gizlilik politikası: hesap yok, kişisel veri saklanmaz, yalnızca herkese açık canlı restoran verisi anlık olarak sorgulanır.{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>Gizlilik Politikası</h1>
+  <p class="sub">Kısa ve dürüst: Ucuz Yemek kullanıcı hesabı veya kişisel veri toplamaz.</p>
+</header>
+
+<h2>Ne toplamıyoruz</h2>
+<p class="lead">Ucuz Yemek'te kullanıcı hesabı, giriş, e-posta adresi, ödeme bilgisi veya başka bir
+  kişisel veri (PII) toplanmaz ya da saklanmaz. Girdiğiniz bütçe ve konum bilgisi tarayıcınızdan
+  yalnızca o anki aramayı yapmak için kullanılır ve sunucuda kalıcı olarak saklanmaz.</p>
+
+<h2>Ne yapıyoruz</h2>
+<p class="lead">Girdiğiniz bütçe ve konuma göre, Trendyol Go ve Yemeksepeti'nin kendi herkese açık,
+  kimlik doğrulaması gerektirmeyen uç noktalarına anlık bir canlı istek göndeririz ve sonucu doğrudan
+  size gösteririz. Bu bir vekil (proxy) sorgudur -- aradaki veriyi kalıcı bir veritabanında tutmayız.</p>
+
+<h2>Çerezler ve takip</h2>
+<p class="lead">Ucuz Yemek reklam veya analiz amaçlı takip çerezi kullanmaz. Barındırma sağlayıcımız
+  (Vercel) standart sunucu erişim günlükleri tutabilir; bu günlükler bu uygulama tarafından
+  okunmaz ya da işlenmez.</p>
+
+<h2>Üçüncü taraf veriler</h2>
+<p class="lead">Gösterilen restoran adları, ürün adları ve fiyatlar Trendyol Go ve Yemeksepeti'nin kendi
+  herkese açık verileridir; bu platformların kendi gizlilik politikaları kendi sitelerinde geçerlidir.</p>
+
+<h2>İletişim</h2>
+<p class="lead">Sorularınız için kaynak kodun yayınlandığı
+  <a href="https://github.com/caelum0x/ucuz-yemek">GitHub deposu</a> üzerinden issue açabilirsiniz.</p>
+{% endblock %}

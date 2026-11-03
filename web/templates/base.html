@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Ucuz Yemek{% endblock %}</title>
+<meta name="description" content="{% block meta_description %}Bütçenize göre gerçek zamanlı restoran ve ürün fiyatları -- Trendyol Go ve Yemeksepeti karşılaştırması.{% endblock %}">
+<link rel="canonical" href="{{ canonical_url }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #131209;
+    --surface: #1F1F1F;
+    --surface-2: #272727;
+    --border: #313131;
+    --text: #FFFFFF;
+    --text-dim: #9B9B9B;
+    --text-faint: #6b6b6b;
+    --good: #7fd98a;
+    --bad: #e5a3a3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--border); }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 24px 96px;
+  }
+  nav.top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px 24px 0;
+    font-size: 14px;
+  }
+  nav.top a { color: var(--text-dim); text-decoration: none; }
+  nav.top a:hover { color: var(--text); }
+  nav.top .brand { color: var(--text); font-weight: 700; text-decoration: none; margin-right: auto; }
+  header.hero { max-width: 680px; margin-bottom: 8px; }
+  h1 {
+    font-size: 30px;
+    line-height: 36px;
+    font-weight: 700;
+    margin: 16px 0 8px;
+    text-wrap: balance;
+  }
+  h2 { font-size: 20px; margin: 32px 0 12px; }
+  p.sub, p.lead {
+    color: var(--text-dim);
+    font-size: 16px;
+    line-height: 26px;
+    margin: 0 0 24px;
+    max-width: 620px;
+    text-wrap: pretty;
+  }
+  ul.items {
+    list-style: none;
+    margin: 0 0 24px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  li.item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .item-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .item-name { font-size: 15px; font-weight: 600; }
+  .item-restaurant { font-size: 13px; color: var(--text-dim); }
+  .item-price-wrap { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .platform-tag {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  .item-price { font-size: 16px; font-weight: 700; color: var(--good); white-space: nowrap; }
+
+  table.compare { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 14px; }
+  table.compare th, table.compare td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  table.compare th { color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+  table.compare td.price { font-weight: 700; }
+  table.compare td.price.cheaper { color: var(--good); }
+
+  .state-box { border: 1px solid var(--border); border-radius: 12px; padding: 20px; color: var(--text-dim); font-size: 15px; margin-bottom: 16px; }
+  .state-box.warning { color: #e5c07b; border-color: #4a3a1a; font-size: 14px; }
+
+  .city-grid, .chain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin: 0 0 24px;
+    padding: 0;
+    list-style: none;
+  }
+  .city-grid a, .chain-grid a {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    text-decoration: none;
+    color: var(--text);
+  }
+  .city-grid a:hover, .chain-grid a:hover { border-color: var(--text-dim); }
+
+  details.faq { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  details.faq summary { cursor: pointer; font-weight: 600; }
+  details.faq p { margin: 10px 0 0; color: var(--text-dim); font-size: 14px; }
+
+  footer { margin-top: 64px; color: var(--text-faint); font-size: 13px; }
+  footer a { color: var(--text-faint); }
+  code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+<nav class="top">
+  <a class="brand" href="/">Ucuz Yemek</a>
+  <a href="/sehir/istanbul">İstanbul</a>
+  <a href="/sehir/ankara">Ankara</a>
+  <a href="/sehir/izmir">İzmir</a>
+  <a href="/sehir/antalya">Antalya</a>
+  <a href="/hakkimizda">Hakkımızda</a>
+  <a href="/sss">SSS</a>
+  <a href="/gizlilik">Gizlilik</a>
+</nav>
+<main id="main-content">
+{% block content %}{% endblock %}
+<footer>
+  Gerçek, canlı veri -- hiçbir restoran, ürün veya fiyat uydurulmaz. Her istek anlık bir canlı
+  sorgudur. Kaynak: <a href="https://github.com/caelum0x/ucuz-yemek">github.com/caelum0x/ucuz-yemek</a>.
+  <br>
+  <a href="/">Ana sayfa</a> ·
+  <a href="/hakkimizda">Hakkımızda</a> ·
+  <a href="/sss">SSS</a> ·
+  <a href="/gizlilik">Gizlilik Politikası</a> ·
+  <a href="/sitemap.xml">Site Haritası</a>
+</footer>
+</main>
+</body>
+</html>

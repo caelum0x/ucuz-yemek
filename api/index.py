@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ucuz_yemek import budget as budget_module  # noqa: E402
 from ucuz_yemek import service  # noqa: E402
+from ucuz_yemek.pages import router as pages_router  # noqa: E402
 
 app = FastAPI(
     title="Ucuz Yemek API",
@@ -168,3 +169,9 @@ _FRONTEND_HTML_PATH = Path(__file__).resolve().parent.parent / "web" / "index.ht
 @app.get("/", response_class=HTMLResponse)
 def frontend() -> str:
     return _FRONTEND_HTML_PATH.read_text(encoding="utf-8")
+
+
+# Real, server-rendered multi-page frontend (city pages, chain-comparison
+# pages, static pages, sitemap) -- see ucuz_yemek/pages.py. Kept as a router
+# include so this JS-driven "/" route and the JSON API above stay untouched.
+app.include_router(pages_router)
