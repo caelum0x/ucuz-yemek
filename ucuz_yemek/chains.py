@@ -26,6 +26,15 @@ CHAINS: tuple[Chain, ...] = (
     Chain("mcdonalds", "McDonald's", "mcdonalds"),
     Chain("kfc", "KFC", "kfc"),
     Chain("dominos", "Domino's Pizza", "dominos"),
+    # Added 2026-11-04, same two-sided verification as the original 5 (see
+    # plans/ucuz-yemek.md): real Yemeksepeti sitemap hit (hundreds of branch
+    # slugs each, not a one-off) AND a real Trendyol Go search_restaurants
+    # name match confirmed live via a ~150-point grid sweep across Istanbul
+    # (a single fixed lat/lon doesn't have a branch of every chain nearby).
+    Chain("little-caesars", "Little Caesars Pizza", "little caesars"),
+    Chain("papa-johns", "Papa John's Pizza", "papa john"),
+    Chain("kofteci-yusuf", "Köfteci Yusuf", "köfteci yusuf"),
+    Chain("pizza-bulls", "Pizza Bulls", "pizza bulls"),
 )
 
 CHAINS_BY_SLUG: dict[str, Chain] = {chain.slug: chain for chain in CHAINS}

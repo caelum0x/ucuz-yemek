@@ -62,8 +62,21 @@ MIN_MEAL_PRICE_TRY = 20.0
 
 # Real chains independently confirmed reachable on Yemeksepeti's public
 # restaurant sitemap during this session (2026-11-03) -- see
-# plans/ucuz-yemek.md for the live verification.
-CURATED_YEMEKSEPETI_CHAINS: tuple[str, ...] = ("subway", "burger-king", "mcdonalds", "kfc", "dominos")
+# plans/ucuz-yemek.md for the live verification. The 4 added 2026-11-04
+# (little-caesars, papa-johns, kofteci-yusuf, pizza-bulls) got the same
+# sitemap check PLUS a live Trendyol Go search match (see chains.py) before
+# being added here -- kept in sync with chains.CHAINS by slug.
+CURATED_YEMEKSEPETI_CHAINS: tuple[str, ...] = (
+    "subway",
+    "burger-king",
+    "mcdonalds",
+    "kfc",
+    "dominos",
+    "little-caesars",
+    "papa-johns",
+    "kofteci-yusuf",
+    "pizza-bulls",
+)
 
 DEFAULT_TRENDYOL_RESTAURANT_CAP = 6
 DEFAULT_YEMEKSEPETI_ITEM_LIMIT = 200
