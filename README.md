@@ -17,15 +17,18 @@ uv run uvicorn api.index:app --reload
 - `web/index.html` — the real frontend: one budget input, one location
   picker, one results list (platform, restaurant, item, price). No
   frameworks, plain HTML/CSS/JS, served directly by FastAPI.
-- `api/index.py` — FastAPI app (same deploy shape as this portfolio's
-  `darkvol`): `GET /api/budget` (the real headline flow, wraps
-  `ucuz_yemek/budget.py`), `GET /api/match` (the real cross-platform
-  same-item comparison, wraps `ucuz_yemek/service.py`), `GET /api/healthz`.
-- Every request is a live fetch against Trendyol Go and/or Yemeksepeti made
-  at request time — there is no cache or mocked response anywhere in the
-  response path.
-- **Not deployed yet** — build/verify/commit only, per a standing portfolio
-  rule. See "Deploying" below for exactly what that would take.
+- `api/index.py` — FastAPI app: `GET /api/budget` (the real headline flow,
+  cache-backed in production, wraps `ucuz_yemek/budget.py`), `GET /api/match`
+  (chain-to-chain cross-platform same-item comparison, wraps
+  `ucuz_yemek/service.py`), `GET /api/match-by-url` (same matching pipeline,
+  but takes a caller-supplied Trendyol Go restaurant id/URL and a Yemeksepeti
+  restaurant URL directly — not limited to the curated chain list, added
+  2026-11-04), `GET /api/healthz`, `GET /robots.txt`.
+- **Live in production** at `https://ucuz-yemek.ereboslab.com` (migrated off
+  Vercel 2026-11-04 — the account is free/Hobby tier, not for real production
+  traffic; see "Deploying" below for the real deploy shape). `/api/budget`
+  reads from the real Postgres cache (`cache_backed: true`) first, falling
+  back to a live fetch only on a genuine cache miss.
 
 ## What this was originally (still true, still real)
 
@@ -236,42 +239,56 @@ ucuz_yemek/
   budget.py           # real budget-first affordable-item search (the headline feature)
   cache_db.py         # real Postgres connection + schema for the cache layer (added 2026-11-03)
   cached_fetchers.py  # read-through/write-back cache around trendyol_go/yemeksepeti (added 2026-11-03)
-  refresh_job.py      # real scheduled cache-warming job, 20 cities + 5 chains (added 2026-11-03)
-  service.py          # shared match pipeline, used by both cli.py and api/index.py
+  refresh_job.py      # real scheduled cache-warming job, 20 cities + 9 chains (expanded 2026-11-04)
+  service.py          # shared match pipeline (run_match chain-to-chain, run_match_by_urls by
+                      # caller-supplied identity, added 2026-11-04), used by cli.py and api/index.py
   cli.py              # argparse CLI: trendyol / yemeksepeti / compare / match / budget
 api/
-  index.py         # Vercel serverless FastAPI app: /api/budget, /api/match, /api/healthz -- unchanged,
-                   # still live-calls on every request (see "Real backend service" below)
+  index.py         # FastAPI app, self-hosted on railyard-box (migrated off Vercel 2026-11-04):
+                   # /api/budget (proxies to backend/'s cache, same box, container DNS),
+                   # /api/match, /api/match-by-url, /api/healthz, /robots.txt
+  Dockerfile       # runs this app via uvicorn (added 2026-11-04, replaces Vercel's Python builder)
 backend/
   server.py          # real standalone FastAPI backend: cache-first /api/budget, in-process scheduled
                       # refresh loop, /admin/refresh (added 2026-11-03)
-  Dockerfile, docker-compose.yml  # staged deploy shape, not yet deployed anywhere public
+  Dockerfile, docker-compose.yml  # real deploy shape, LIVE on railyard-box (deployed 2026-11-03)
 web/
   index.html        # the real frontend (plain HTML/CSS/JS, no framework)
+  templates/        # server-rendered SEO pages: city.html, chain_compare.html, about/privacy/faq,
+                     # sitemap.xml -- cross-linked, robots.txt-covered (audited+fixed 2026-11-04)
 mobile/
-  App.tsx            # real Expo/React Native client, thin wrapper over the live /api/budget (added 2026-11-03)
+  App.tsx            # real Expo/React Native client, thin wrapper over the live /api/budget
+                      # (added 2026-11-03; iOS verified 2026-11-03, Android verified 2026-11-04)
 ```
 
-## Deploying (staged, not executed — see plans/ucuz-yemek.md)
+## Deploying (live — see plans/ucuz-yemek.md for full history)
 
-`vercel.json` and `requirements.txt` are already in the repo, same shape as
-`darkvol`'s working Vercel deploy. A real deploy would be:
+Both halves run as their own Docker service on railyard-box (one of this
+portfolio's own Oracle boxes — never Vercel for real production traffic,
+owner constraint 2026-11-04), on the same `products-net` so the web app
+reaches the backend by container DNS instead of a public URL:
 
-```bash
-vercel --prod
-```
+- `backend/` → `infra-box/stacks/ucuz-yemek-backend` →
+  `ucuz-yemek-backend.ereboslab.com` (internal-only, grey-cloud DNS).
+- `api/` (this app) → `infra-box/stacks/ucuz-yemek-web` →
+  **`https://ucuz-yemek.ereboslab.com`** (the real public one).
+
+Redeploy either with `sudo ./install.sh ucuz-yemek-backend` /
+`sudo ./install.sh ucuz-yemek-web` from `infra-box/` on that box after a
+`git pull` of this repo into `/srv/src/ucuz-yemek`.
 
 No environment variables are required for `/api/budget` (Trendyol Go and
-Yemeksepeti need no auth). `/api/match` additionally needs `TYPESAFE_API_KEY`
-set in the Vercel project's environment variables if that secondary endpoint
-is exposed publicly.
+Yemeksepeti need no auth). `/api/match`/`/api/match-by-url` additionally need
+`TYPESAFE_API_KEY` set wherever this app runs if those endpoints adjudicate
+ambiguous matches via Jev.
 
 ## Real backend service (caching + scheduled job, added 2026-11-03)
 
-Up to this point the only "backend" was `api/index.py` — a stateless Vercel
-serverless function that live-calls Trendyol Go/Yemeksepeti on *every*
-request, with no database, no cache, no scheduled job. `backend/` is a real,
-separate, persistent service that fixes that:
+Originally the only "backend" was `api/index.py` — a stateless serverless
+function that live-called Trendyol Go/Yemeksepeti on *every* request, with
+no database, no cache, no scheduled job. `backend/` is a real, separate,
+persistent service that fixes that (and, once both were moved onto the same
+box 2026-11-04, is what `api/index.py` now proxies to for every request):
 
 - `ucuz_yemek/cache_db.py` — real Postgres schema (`trendyol_restaurant_search_cache`,
   `trendyol_menu_cache`, `yemeksepeti_chain_cache`).
@@ -281,14 +298,15 @@ separate, persistent service that fixes that:
   back for next time.
 - `ucuz_yemek/refresh_job.py` — a real scheduled job that live-fetches every
   supported city (`cities.py`, 20 cities) and curated chain
-  (`budget.CURATED_YEMEKSEPETI_CHAINS`, 5 chains) and warms the cache.
+  (`budget.CURATED_YEMEKSEPETI_CHAINS`, 9 chains as of 2026-11-04) and warms
+  the cache.
 - `backend/server.py` — a standalone FastAPI process that runs that job
   in-process on a timer (default every 6h) and serves `/api/budget` from the
   cache first (`use_cache=True`), plus `/admin/refresh` for an on-demand
   manual warm.
 - `budget.find_affordable_items(..., use_cache=True)` is purely additive —
   the default (`use_cache=False`) is byte-for-byte the original behavior, so
-  the existing CLI and the live Vercel deploy are unaffected.
+  the existing CLI is unaffected either way.
 
 Run it locally:
 
@@ -302,28 +320,27 @@ DATABASE_URL=postgresql://ucuz_yemek:ucuz_yemek@localhost:15544/ucuz_yemek \
 curl "http://127.0.0.1:8811/api/budget?budget=300&lat=41.0082&lon=28.9784"
 ```
 
-**Why this also matters for the known `/api/budget` 502 on Vercel**: that bug
-is Yemeksepeti's anti-bot layer 403ing Vercel's hosting IP on a live call. A
-request served from this backend's warm cache never makes that live call for
-a pre-warmed city/chain — it just reads Postgres. See plans/ucuz-yemek.md for
-the real verification evidence (live psql counts, curl timings, a full
-20-city/5-chain refresh with zero failures) and what a production deploy of
-this backend would still need (a reachable, non-localhost Postgres; staged,
-not executed, per the standing ask-before-deploy rule).
+**Why this also matters for the known `/api/budget` 502/403 history**: the
+original bug was Yemeksepeti's anti-bot layer 403ing Vercel's hosting IP on a
+live call. The real fix (2026-11-04) wasn't just caching — it was moving the
+whole app off Vercel onto the same box as this backend, so `/api/budget`
+reaches it over the box's internal `products-net` instead of any public
+egress. See plans/ucuz-yemek.md for the full verification history (live psql
+counts, curl timings, refresh-job runs with zero failures, and the final
+live `cache_backed:true` proof in production).
 
-## Next steps (not done, scoped out of this prototype)
+## Next steps (not done)
 
-- `match` is chain-only (needs the same restaurant name reachable on both
-  platforms). Real local restaurants (one meze shop, one kebap place) still
-  have no shared catalog to join on — would need fuzzy restaurant-identity
-  matching (name + address + cuisine), not just item matching, to extend
-  `match` beyond chains.
-- Decide if the Yemeksepeti ToS risk is acceptable for anything beyond a
-  manual/dev-scale prototype before building a scheduled/production scraper.
-- The real backend (see above) is built and locally verified, but not yet
-  deployed anywhere reachable from the public internet, and Vercel's own
-  `api/index.py` is not yet wired to read from it (`DATABASE_URL` unset there)
-  — both are real next steps, not done in this pass.
+- `/api/match-by-url` (added 2026-11-04) covers the "I already know both
+  restaurants' identity" case. True fuzzy restaurant-identity matching (find
+  the SAME local restaurant across both platforms from name+address+cuisine
+  alone, with no identity given) is still not built — still needed to extend
+  matching to arbitrary local restaurants a user hasn't already identified.
+- Decide if the Yemeksepeti ToS risk is acceptable for anything beyond this
+  curated-chain/cache-backed scale before scraping more broadly.
+- No real custom domain yet (`ucuz-yemek.ereboslab.com` is a subdomain of a
+  shared box's zone) — owner has said a real domain purchase is a future
+  step, not blocking anything today.
 
 ## Owner-only steps
 
