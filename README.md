@@ -228,18 +228,28 @@ driven end-to-end through the real browser UI (not just the API) — see
 
 ```
 ucuz_yemek/
-  trendyol_go.py   # real JSON API fetcher (api.tgoapis.com)
-  yemeksepeti.py   # real but fragile HTML-scrape fetcher
-  discovery.py     # finds a live restaurant for the same chain on both platforms
-  matching.py      # blocking -> matching -> merge-policy same-item matcher
-  jev.py           # thin client for the real TypeSafe System One (Jev) API
-  budget.py        # real budget-first affordable-item search (the headline feature)
-  service.py       # shared match pipeline, used by both cli.py and api/index.py
-  cli.py           # argparse CLI: trendyol / yemeksepeti / compare / match / budget
+  trendyol_go.py     # real JSON API fetcher (api.tgoapis.com)
+  yemeksepeti.py      # real but fragile HTML-scrape fetcher
+  discovery.py        # finds a live restaurant for the same chain on both platforms
+  matching.py         # blocking -> matching -> merge-policy same-item matcher
+  jev.py              # thin client for the real TypeSafe System One (Jev) API
+  budget.py           # real budget-first affordable-item search (the headline feature)
+  cache_db.py         # real Postgres connection + schema for the cache layer (added 2026-11-03)
+  cached_fetchers.py  # read-through/write-back cache around trendyol_go/yemeksepeti (added 2026-11-03)
+  refresh_job.py      # real scheduled cache-warming job, 20 cities + 5 chains (added 2026-11-03)
+  service.py          # shared match pipeline, used by both cli.py and api/index.py
+  cli.py              # argparse CLI: trendyol / yemeksepeti / compare / match / budget
 api/
-  index.py         # FastAPI app: /api/budget, /api/match, /api/healthz, serves web/index.html
+  index.py         # Vercel serverless FastAPI app: /api/budget, /api/match, /api/healthz -- unchanged,
+                   # still live-calls on every request (see "Real backend service" below)
+backend/
+  server.py          # real standalone FastAPI backend: cache-first /api/budget, in-process scheduled
+                      # refresh loop, /admin/refresh (added 2026-11-03)
+  Dockerfile, docker-compose.yml  # staged deploy shape, not yet deployed anywhere public
 web/
   index.html        # the real frontend (plain HTML/CSS/JS, no framework)
+mobile/
+  App.tsx            # real Expo/React Native client, thin wrapper over the live /api/budget (added 2026-11-03)
 ```
 
 ## Deploying (staged, not executed — see plans/ucuz-yemek.md)
@@ -256,6 +266,51 @@ Yemeksepeti need no auth). `/api/match` additionally needs `TYPESAFE_API_KEY`
 set in the Vercel project's environment variables if that secondary endpoint
 is exposed publicly.
 
+## Real backend service (caching + scheduled job, added 2026-11-03)
+
+Up to this point the only "backend" was `api/index.py` — a stateless Vercel
+serverless function that live-calls Trendyol Go/Yemeksepeti on *every*
+request, with no database, no cache, no scheduled job. `backend/` is a real,
+separate, persistent service that fixes that:
+
+- `ucuz_yemek/cache_db.py` — real Postgres schema (`trendyol_restaurant_search_cache`,
+  `trendyol_menu_cache`, `yemeksepeti_chain_cache`).
+- `ucuz_yemek/cached_fetchers.py` — read-through/write-back cache around the
+  existing live fetchers; a cache miss/stale entry falls through to the exact
+  same live call `api/index.py` already makes, then writes the real result
+  back for next time.
+- `ucuz_yemek/refresh_job.py` — a real scheduled job that live-fetches every
+  supported city (`cities.py`, 20 cities) and curated chain
+  (`budget.CURATED_YEMEKSEPETI_CHAINS`, 5 chains) and warms the cache.
+- `backend/server.py` — a standalone FastAPI process that runs that job
+  in-process on a timer (default every 6h) and serves `/api/budget` from the
+  cache first (`use_cache=True`), plus `/admin/refresh` for an on-demand
+  manual warm.
+- `budget.find_affordable_items(..., use_cache=True)` is purely additive —
+  the default (`use_cache=False`) is byte-for-byte the original behavior, so
+  the existing CLI and the live Vercel deploy are unaffected.
+
+Run it locally:
+
+```bash
+docker run -d -p 15544:5432 -e POSTGRES_DB=ucuz_yemek -e POSTGRES_USER=ucuz_yemek \
+    -e POSTGRES_PASSWORD=ucuz_yemek postgres:16-alpine
+DATABASE_URL=postgresql://ucuz_yemek:ucuz_yemek@localhost:15544/ucuz_yemek \
+    uv run python -m ucuz_yemek.refresh_job      # one real warm-up pass
+DATABASE_URL=postgresql://ucuz_yemek:ucuz_yemek@localhost:15544/ucuz_yemek \
+    uv run uvicorn backend.server:app --port 8811
+curl "http://127.0.0.1:8811/api/budget?budget=300&lat=41.0082&lon=28.9784"
+```
+
+**Why this also matters for the known `/api/budget` 502 on Vercel**: that bug
+is Yemeksepeti's anti-bot layer 403ing Vercel's hosting IP on a live call. A
+request served from this backend's warm cache never makes that live call for
+a pre-warmed city/chain — it just reads Postgres. See plans/ucuz-yemek.md for
+the real verification evidence (live psql counts, curl timings, a full
+20-city/5-chain refresh with zero failures) and what a production deploy of
+this backend would still need (a reachable, non-localhost Postgres; staged,
+not executed, per the standing ask-before-deploy rule).
+
 ## Next steps (not done, scoped out of this prototype)
 
 - `match` is chain-only (needs the same restaurant name reachable on both
@@ -265,9 +320,10 @@ is exposed publicly.
   `match` beyond chains.
 - Decide if the Yemeksepeti ToS risk is acceptable for anything beyond a
   manual/dev-scale prototype before building a scheduled/production scraper.
-- No persistence/scheduling yet — every run re-fetches both platforms live
-  and re-runs matching from scratch; there's no database of known matches to
-  reuse across runs yet.
+- The real backend (see above) is built and locally verified, but not yet
+  deployed anywhere reachable from the public internet, and Vercel's own
+  `api/index.py` is not yet wired to read from it (`DATABASE_URL` unset there)
+  — both are real next steps, not done in this pass.
 
 ## Owner-only steps
 

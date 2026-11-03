@@ -115,7 +115,12 @@ def _dedupe(items: list[AffordableItem]) -> list[AffordableItem]:
 
 
 def _trendyol_affordable_items(
-    budget_try: float, latitude: float, longitude: float, restaurant_cap: int
+    budget_try: float,
+    latitude: float,
+    longitude: float,
+    restaurant_cap: int,
+    use_cache: bool = False,
+    cache_ttl_seconds: int = 3600,
 ) -> tuple[list[AffordableItem], list[str]]:
     """Real items at or under budget from the real nearest Trendyol Go
     restaurants. One restaurant's menu failing (closed, empty, transient
@@ -130,7 +135,14 @@ def _trendyol_affordable_items(
     items: list[AffordableItem] = []
     checked: list[str] = []
     try:
-        all_restaurants = trendyol_go.search_restaurants(latitude, longitude)
+        if use_cache:
+            from ucuz_yemek import cached_fetchers
+
+            all_restaurants, _ = cached_fetchers.cached_search_restaurants(
+                latitude, longitude, ttl_seconds=cache_ttl_seconds
+            )
+        else:
+            all_restaurants = trendyol_go.search_restaurants(latitude, longitude)
     except Exception as exc:
         raise RuntimeError(f"trendyol_go.search_restaurants failed: {exc}") from exc
 
@@ -147,7 +159,14 @@ def _trendyol_affordable_items(
         distance_km = (restaurant.get("location") or {}).get("distance")
         rating = restaurant.get("rating")
         try:
-            menu = trendyol_go.get_restaurant_menu(restaurant["id"], latitude, longitude)
+            if use_cache:
+                from ucuz_yemek import cached_fetchers
+
+                menu, _ = cached_fetchers.cached_restaurant_menu(
+                    restaurant["id"], name, latitude, longitude, ttl_seconds=cache_ttl_seconds
+                )
+            else:
+                menu = trendyol_go.get_restaurant_menu(restaurant["id"], latitude, longitude)
         except Exception:
             continue
         for entry in trendyol_go.flatten_menu_items(menu):
@@ -168,7 +187,11 @@ def _trendyol_affordable_items(
 
 
 def _yemeksepeti_affordable_items(
-    budget_try: float, chains: tuple[str, ...], item_limit: int
+    budget_try: float,
+    chains: tuple[str, ...],
+    item_limit: int,
+    use_cache: bool = False,
+    cache_ttl_seconds: int = 3600,
 ) -> tuple[list[AffordableItem], list[str]]:
     """Real items at or under budget from a curated set of chains known to
     resolve on the live sitemap (see module docstring for why this isn't a
@@ -177,6 +200,32 @@ def _yemeksepeti_affordable_items(
     checked: list[str] = []
     failures = 0
     for chain in chains:
+        if use_cache:
+            from ucuz_yemek import cached_fetchers
+
+            try:
+                url, chain_items, _ = cached_fetchers.cached_yemeksepeti_chain_items(
+                    chain, item_limit=item_limit, ttl_seconds=cache_ttl_seconds
+                )
+            except Exception as exc:
+                raise RuntimeError(f"cached_fetchers.cached_yemeksepeti_chain_items({chain!r}) failed: {exc}") from exc
+            if url is None:
+                continue
+            checked.append(chain)
+            restaurant_name = chain.replace("-", " ").title()
+            for entry in chain_items:
+                price = entry["price_try"]
+                if price is not None and 0 < price <= budget_try:
+                    items.append(
+                        AffordableItem(
+                            platform="yemeksepeti",
+                            restaurant_name=restaurant_name,
+                            item_name=entry["name"],
+                            price_try=price,
+                        )
+                    )
+            continue
+
         try:
             url = discovery.find_yemeksepeti_restaurant_url(chain)
         except Exception as exc:
@@ -249,6 +298,8 @@ def find_affordable_items(
     restaurant_cap: int = DEFAULT_TRENDYOL_RESTAURANT_CAP,
     yemeksepeti_chains: tuple[str, ...] = CURATED_YEMEKSEPETI_CHAINS,
     sort_mode: str = DEFAULT_SORT_MODE,
+    use_cache: bool = False,
+    cache_ttl_seconds: int = 3600,
 ) -> BudgetSearchResult:
     """Real, live items the user can actually afford right now, from both
     platforms. `sort_mode` picks the real ranking strategy (see SORT_MODES /
@@ -259,7 +310,16 @@ def find_affordable_items(
     (e.g. its own anti-bot layer 403ing this server's IP) degrades to zero
     items from that platform plus a `platform_errors` entry -- it never
     discards the other platform's real, already-fetched results. Only raises
-    if BOTH platforms are down, since there would be nothing real to return."""
+    if BOTH platforms are down, since there would be nothing real to return.
+
+    `use_cache=False` (the default) is the exact original behavior -- every
+    call hits Trendyol Go/Yemeksepeti live, unchanged, so the existing CLI
+    and the live Vercel `api/index.py` are not affected by this parameter
+    existing. `use_cache=True` (used by the new standalone `backend/server.py`
+    service, see cached_fetchers.py) reads from the real Postgres cache first
+    and only calls out live on a miss/stale entry, writing the real result
+    back for next time -- see plans/ucuz-yemek.md for why this also fixes the
+    Vercel 502 (reading a cache doesn't hit the anti-bot-blocked IP)."""
     if budget_try <= 0:
         raise ValueError("budget_try must be positive")
     if sort_mode not in SORT_MODES:
@@ -269,7 +329,7 @@ def find_affordable_items(
 
     try:
         trendyol_items, trendyol_checked = _trendyol_affordable_items(
-            budget_try, latitude, longitude, restaurant_cap
+            budget_try, latitude, longitude, restaurant_cap, use_cache=use_cache, cache_ttl_seconds=cache_ttl_seconds
         )
     except RuntimeError as exc:
         trendyol_items, trendyol_checked = [], []
@@ -277,7 +337,11 @@ def find_affordable_items(
 
     try:
         yemeksepeti_items, yemeksepeti_checked = _yemeksepeti_affordable_items(
-            budget_try, yemeksepeti_chains, DEFAULT_YEMEKSEPETI_ITEM_LIMIT
+            budget_try,
+            yemeksepeti_chains,
+            DEFAULT_YEMEKSEPETI_ITEM_LIMIT,
+            use_cache=use_cache,
+            cache_ttl_seconds=cache_ttl_seconds,
         )
     except RuntimeError as exc:
         yemeksepeti_items, yemeksepeti_checked = [], []

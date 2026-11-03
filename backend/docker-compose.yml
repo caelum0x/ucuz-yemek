@@ -1,0 +1,41 @@
+# Real, complete deploy shape for the standalone backend + its Postgres
+# cache (see backend/server.py). Run from the repo root:
+#     docker compose -f backend/docker-compose.yml up --build
+# Staged for a future deploy to one of the portfolio's own Oracle boxes
+# (never a new paid host, per the standing infra rule) -- not yet deployed
+# anywhere public this pass; verified locally instead (see
+# plans/ucuz-yemek.md for the real curl/psql evidence from this session).
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ucuz_yemek
+      POSTGRES_USER: ucuz_yemek
+      POSTGRES_PASSWORD: ucuz_yemek
+    volumes:
+      - ucuz_yemek_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ucuz_yemek"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ucuz_yemek:ucuz_yemek@postgres:5432/ucuz_yemek
+      # Set a real random value before any public deploy -- unset means
+      # /admin/refresh is open, fine for local dev only.
+      UCUZ_YEMEK_ADMIN_KEY: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8811:8811"
+
+volumes:
+  ucuz_yemek_pgdata:
