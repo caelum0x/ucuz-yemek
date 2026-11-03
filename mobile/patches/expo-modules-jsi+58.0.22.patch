@@ -1,0 +1,18 @@
+diff --git a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
+index de76b97..df29a92 100644
+--- a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
++++ b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
+@@ -942,8 +942,12 @@ private func withEncodedValue(
+     // The runtime can't be deallocated during a call on its JavaScript thread, so it's borrowed without
+     // a retain.
+     try runtime._withUnsafeGuaranteedRef { runtime in
++      // Built from the already-`nonisolated(unsafe)` pointer above; binding it the same way lets the
++      // compiler see it as safe to pass into the actor-isolated closure below (same reasoning as `slot`:
++      // the isolated closure runs synchronously on this thread, so there's no real concurrent access).
++      nonisolated(unsafe) let valueSlot = JavaScriptValue.Slot(slot)
+       try JavaScriptActor.assumeIsolated {
+-        try encode(JavaScriptValue.Slot(slot), runtime)
++        try encode(valueSlot, runtime)
+       }
+     }
+     body(slot.pointee)

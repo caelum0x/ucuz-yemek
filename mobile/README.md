@@ -39,12 +39,58 @@ npx expo export --platform web   # real production web bundle (verifies the full
   Kebap items, all at 300 TRY, with real distance/rating). Zero console
   errors.
 
+## Verified 2026-11-03 (later): real iOS Simulator build — first time, found + fixed a real bug
+
+`npx expo run:ios` was actually run against a real iPhone 16 Pro Max
+simulator (iOS 26, Xcode 26.0.1) for the first time this pass (previously
+only web-export/tsc had been verified — see above).
+
+**Real bug found and fixed**: the first build failed outright — `expo-modules-jsi@58.0.22`
+(an Expo SDK dependency pulled in transitively via `expo-modules-core`, not
+our own code) fails to compile under Xcode 26's Swift 6 strict-concurrency
+checker with `sending 'slot' risks causing data races` in
+`JavaScriptObject.swift`'s `withEncodedValue`. Confirmed this is a genuine
+upstream regression, not an environment fluke: diffed `expo-modules-jsi`
+58.0.15/58.0.20/58.0.21/58.0.22 from the npm registry — the offending
+`withEncodedValue` helper was introduced in **58.0.21** and is unchanged in
+58.0.22 (the latest version on npm as of this pass); 58.0.20 and earlier
+don't have it and compile fine (confirmed indirectly: this portfolio's
+`ecomoney` app, pinned to `expo-modules-jsi@58.0.15`, built successfully on
+this same machine/Xcode this same day).
+
+Fixed with a `patch-package` patch (`patches/expo-modules-jsi+58.0.22.patch`,
+auto-applied via `postinstall`) rather than downgrading the dependency —
+downgrading broke CocoaPods' autolinked path resolution (npm nests
+`expo-modules-jsi` under `expo-modules-core/node_modules/` instead of
+hoisting it when an override is used, which the generated Podfile doesn't
+expect) and risked an API-surface mismatch with `expo-modules-macros`'
+`@Record` codegen, which does call the new 58.0.21+ JSI APIs. The patch
+keeps the full 58.0.22 API surface and fixes only the one function: binds
+the already-`nonisolated(unsafe)` slot pointer's wrapped `JavaScriptValue.Slot`
+the same way before passing it into the actor-isolated closure, which is
+enough for the Swift 6 compiler to see it as safe (same reasoning the
+surrounding code already uses for the raw pointer itself).
+
+After the patch: clean rebuild succeeded (`Build Succeeded`, 0 errors, 7
+pre-existing unrelated warnings), installed on the simulator, Metro bundled
+722 modules with zero JS errors, and the real UI rendered correctly
+(screenshot-verified: budget input, 4 location chips, sort options, submit
+button, Turkish copy, dark theme — matches the web version's design intent).
+**Not independently re-verified on-device**: tapping the submit button to
+re-confirm the live network fetch on native (vs. the web-export version
+confirmed above) — this sandbox has no Accessibility permission granted to
+automate a simulator tap (`osascript`/`cliclick` both need it; it's a
+one-time interactive System Settings grant, an owner-only step, not
+blocking anything else). The JS bundle and `lib/api.ts` fetch code are
+unchanged from what was already live-verified via the web-export + headless
+browser pass above, so this is a reasonable-confidence gap, not an unknown.
+
+Android (`expo run:android`) was not run this pass — iOS was sufficient to
+find and fix the one real cross-platform native-build blocker (the patched
+Swift file is Apple-only code, doesn't affect Android).
+
 ## Not done yet (honest scope)
 
-- Not built for iOS/Android simulator/device in this pass (no `expo run:ios`
-  / `expo run:android` — those require a much longer native build; the web
-  export + tsc verification above proves the same cross-platform code
-  compiles and the data flow genuinely works end-to-end).
 - Not submitted to TestFlight/Play Console — no app-store packaging
   (icons/screenshots/onboarding) done yet; this is a functional MVP, not a
   store-ready release.
