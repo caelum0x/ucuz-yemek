@@ -9,3 +9,10 @@ wheels/
 # Virtual environments
 .venv
 .vercel
+
+# Mobile (Expo/React Native)
+node_modules/
+.expo/
+mobile/dist/
+*.orig.*
+

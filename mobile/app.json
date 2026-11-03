@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "owner": "arhansuba",
+    "name": "Ucuz Yemek",
+    "slug": "ucuz-yemek",
+    "description": "Bütçeni yaz, çevrende yiyebileceğin en uygun fiyatlı yemekleri gör. Trendyol Go ve Yemeksepeti üzerinden gerçek, canlı fiyatlarla.",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "ucuzyemek",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ucuzyemek.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Ucuz Yemek, yakınındaki uygun fiyatlı yemekleri bulmak için konumunu kullanır."
+      }
+    },
+    "android": {
+      "package": "com.ucuzyemek.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0B0C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Ucuz Yemek, yakınındaki uygun fiyatlı yemekleri bulmak için konumunu kullanır."
+        }
+      ]
+    ]
+  }
+}
