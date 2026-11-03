@@ -30,7 +30,14 @@ MOBILE_USER_AGENT = (
 )
 SITEMAP_INDEX_URL = "https://www.yemeksepeti.com/adventure-map/adventure-map-index-restaurant.xml"
 TIMEOUT_SECONDS = 30
-CACHE_DIR = os.path.expanduser("~/.cache/ucuz-yemek")
+# Vercel's serverless filesystem is read-only outside /tmp; VERCEL=1 is set
+# automatically in that runtime (https://vercel.com/docs/environment-variables/system-environment-variables).
+# /tmp only persists for a warm instance's lifetime there, which still avoids
+# re-downloading the ~37MB sitemap on every request within the same instance
+# -- the CLI/local default of a real on-disk 24h cache is unchanged.
+CACHE_DIR = os.environ.get("UCUZ_YEMEK_CACHE_DIR") or (
+    "/tmp/ucuz-yemek-cache" if os.environ.get("VERCEL") else os.path.expanduser("~/.cache/ucuz-yemek")
+)
 CACHE_TTL_SECONDS = 24 * 60 * 60
 
 _LOC_RE = re.compile(r"<loc>([^<]+)</loc>")
