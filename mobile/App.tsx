@@ -1,10 +1,12 @@
 // Ucuz Yemek -- native client.
 //
-// This is deliberately a THIN CLIENT over the already-live backend
-// (https://ucuz-yemek.ereboslab.com, same FastAPI app the web frontend talks
-// to) -- no business logic, no local matching/ranking, no mock data. Every
-// search result on screen is a live fetch made at request time, same as the
-// web version. See lib/api.ts and ~/products/plans/ucuz-yemek.md.
+// This is deliberately a THIN CLIENT over the Ucuz Yemek backend (same
+// FastAPI app the web frontend talks to) -- no business logic, no local
+// matching/ranking, no mock data. Every search result on screen is a live
+// fetch made at request time, same as the web version. See lib/api.ts for
+// the current host status (as of 2026-11-04 it's down) and
+// ~/products/plans/ucuz-yemek.md for the open item on where this should
+// point next.
 import { StatusBar } from "expo-status-bar";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,6 +28,7 @@ import {
   City,
   SortMode,
   fetchCities,
+  isServiceUnavailable,
   nearestCity,
   platformLabel,
   searchBudget,
@@ -78,6 +81,7 @@ export default function App() {
   const [locatingDevice, setLocatingDevice] = useState(false);
   const [state, setState] = useState<SearchState>({ status: "idle" });
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [backendUnavailable, setBackendUnavailable] = useState(false);
 
   useEffect(() => {
     hasSeenOnboarding().then((seen) => setShowOnboarding(!seen));
@@ -85,10 +89,17 @@ export default function App() {
 
   useEffect(() => {
     fetchCities()
-      .then((list) => setCities(list))
-      .catch(() => {
-        // Real city list unavailable -- the FALLBACK_CITY_SLUG default still
-        // lets city-based search work once the backend is reachable again.
+      .then((list) => {
+        setCities(list);
+        setBackendUnavailable(false);
+      })
+      .catch((err) => {
+        // Real city list unavailable. The FALLBACK_CITY_SLUG default still
+        // lets city-based search work once the backend is reachable again,
+        // but surface this honestly instead of pretending nothing is wrong --
+        // the user is about to tap "search" against a backend we already
+        // know just failed.
+        setBackendUnavailable(isServiceUnavailable(err));
       });
   }, []);
 
@@ -191,23 +202,26 @@ export default function App() {
         keyExtractor={(item, idx) => `${item.platform}-${item.restaurant_name}-${item.item_name}-${idx}`}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          <Header
-            budget={budget}
-            onBudgetChange={setBudget}
-            query={query}
-            onQueryChange={setQuery}
-            cities={cities}
-            selectedCitySlug={selectedCitySlug}
-            onPickCity={pickCity}
-            usingDeviceLocation={!!customCoords}
-            locatingDevice={locatingDevice}
-            onUseDeviceLocation={useDeviceLocation}
-            sort={sort}
-            onSortChange={setSort}
-            onSubmit={runSearch}
-            loading={state.status === "loading"}
-            activeLocationLabel={activeLocationLabel}
-          />
+          <View>
+            {backendUnavailable ? <BackendUnavailableBanner /> : null}
+            <Header
+              budget={budget}
+              onBudgetChange={setBudget}
+              query={query}
+              onQueryChange={setQuery}
+              cities={cities}
+              selectedCitySlug={selectedCitySlug}
+              onPickCity={pickCity}
+              usingDeviceLocation={!!customCoords}
+              locatingDevice={locatingDevice}
+              onUseDeviceLocation={useDeviceLocation}
+              sort={sort}
+              onSortChange={setSort}
+              onSubmit={runSearch}
+              loading={state.status === "loading"}
+              activeLocationLabel={activeLocationLabel}
+            />
+          </View>
         }
         ListFooterComponent={
           state.status === "success" ? (
@@ -380,6 +394,17 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
     );
   }
   return null;
+}
+
+function BackendUnavailableBanner() {
+  return (
+    <View style={[styles.stateBox, styles.stateBoxWarning]}>
+      <Text style={styles.stateBoxWarningText}>
+        Ucuz Yemek sunucusuna şu anda ulaşılamıyor. Arama şimdilik çalışmayabilir, lütfen daha
+        sonra tekrar dene.
+      </Text>
+    </View>
+  );
 }
 
 function PlatformWarning({ errors }: { errors: Record<string, string> | null }) {

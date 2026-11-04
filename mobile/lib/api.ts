@@ -1,12 +1,21 @@
-// Thin client over the ALREADY LIVE Ucuz Yemek backend (FastAPI, self-hosted
-// on railyard-box -- migrated off Vercel 2026-11-04, see
-// ~/products/plans/ucuz-yemek.md: Vercel account is free/Hobby tier, not for
-// real production traffic). No business logic lives here -- this only calls
-// the same real /api/budget endpoint the web frontend (web/index.html)
-// calls, and shapes the response for the native UI. See ../../README.md for
-// the backend's real data sources (Trendyol Go live search, Yemeksepeti
-// curated-chain sitemap lookup).
-
+// Thin client over the Ucuz Yemek backend (FastAPI, self-hosted on
+// railyard-box). No business logic lives here -- this only calls the real
+// JSON API (/api/budget, /api/cities, ...) and shapes the response for the
+// native UI. See ../../README.md for the backend's real data sources
+// (Trendyol Go live search, Yemeksepeti curated-chain sitemap lookup).
+//
+// STATUS (2026-11-04, see ~/products/plans/ucuz-yemek.md): this host is the
+// public *web frontend* (web/index.html), which is currently DOWN (confirmed
+// dead, HTTP 525) -- it was never meant to serve the mobile app's API calls
+// in the first place, it just happened to also expose the backend's routes.
+// A separate, dedicated public API host for this backend already exists and
+// is live (https://ucuz-yemek-backend.ereboslab.com, verified via curl:
+// /healthz -> 200, /api/budget -> real JSON, cache_backed:true) but pointing
+// the app at it is an explicit decision left open for the owner -- see the
+// plan file's open item -- so this constant intentionally still points at
+// the dead host. Every call below fails loudly with a clear "service
+// unavailable" ApiError instead of hanging or failing silently; nothing here
+// assumes the host above is reachable.
 export const API_BASE_URL = "https://ucuz-yemek.ereboslab.com";
 
 export type SortMode =
@@ -39,7 +48,35 @@ export interface BudgetSearchResponse {
   scope_note: string;
 }
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  /**
+   * HTTP status of the failed response, or `null` when the request never
+   * reached a server at all (DNS failure, TLS failure, offline device, etc).
+   */
+  readonly status: number | null;
+
+  constructor(message: string, status: number | null = null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * True when the failure means "the backend itself is down/misconfigured"
+ * (5xx, or the request never reached any server) rather than a client-side
+ * mistake (bad budget, unknown city, etc -- those come back as 4xx with a
+ * real `detail` message from the API).
+ */
+export function isServiceUnavailable(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  return error.status === null || error.status >= 500;
+}
+
+const SERVICE_UNAVAILABLE_MESSAGE =
+  "Ucuz Yemek is temporarily unavailable. We know, and we're on it -- try again in a few minutes.";
+const NETWORK_UNREACHABLE_MESSAGE =
+  "Could not reach Ucuz Yemek. Check your connection and try again.";
 
 export interface City {
   slug: string;
@@ -60,7 +97,13 @@ export interface CitySearchResponse {
   platform_errors: Record<string, string> | null;
 }
 
-async function parseErrorDetail(response: Response): Promise<string> {
+async function toApiError(response: Response): Promise<ApiError> {
+  if (response.status >= 500) {
+    // 5xx (or an edge/proxy error page like Cloudflare 521/525) means the
+    // backend itself is broken, not something the user did -- never show a
+    // raw status code for this, show a clear "we're down" state instead.
+    return new ApiError(SERVICE_UNAVAILABLE_MESSAGE, response.status);
+  }
   let detail = `Request failed with status ${response.status}`;
   try {
     const body = await response.json();
@@ -68,7 +111,7 @@ async function parseErrorDetail(response: Response): Promise<string> {
   } catch {
     // response wasn't JSON -- keep the generic message above
   }
-  return detail;
+  return new ApiError(detail, response.status);
 }
 
 export async function fetchCities(): Promise<City[]> {
@@ -76,12 +119,10 @@ export async function fetchCities(): Promise<City[]> {
   try {
     response = await fetch(new URL("/api/cities", API_BASE_URL).toString());
   } catch {
-    throw new ApiError(
-      "Could not reach the live server. Check your connection and try again."
-    );
+    throw new ApiError(NETWORK_UNREACHABLE_MESSAGE, null);
   }
   if (!response.ok) {
-    throw new ApiError(await parseErrorDetail(response));
+    throw await toApiError(response);
   }
   const body = (await response.json()) as { cities: City[] };
   return body.cities;
@@ -105,12 +146,10 @@ export async function searchCityBudget(params: {
   try {
     response = await fetch(url.toString());
   } catch {
-    throw new ApiError(
-      "Could not reach the live server. Check your connection and try again."
-    );
+    throw new ApiError(NETWORK_UNREACHABLE_MESSAGE, null);
   }
   if (!response.ok) {
-    throw new ApiError(await parseErrorDetail(response));
+    throw await toApiError(response);
   }
   return (await response.json()) as CitySearchResponse;
 }
@@ -157,21 +196,12 @@ export async function searchBudget(params: {
   let response: Response;
   try {
     response = await fetch(url.toString());
-  } catch (networkErr) {
-    throw new ApiError(
-      "Could not reach the live server. Check your connection and try again."
-    );
+  } catch {
+    throw new ApiError(NETWORK_UNREACHABLE_MESSAGE, null);
   }
 
   if (!response.ok) {
-    let detail = `Request failed with status ${response.status}`;
-    try {
-      const body = await response.json();
-      if (body?.detail) detail = String(body.detail);
-    } catch {
-      // response wasn't JSON -- keep the generic message above
-    }
-    throw new ApiError(detail);
+    throw await toApiError(response);
   }
 
   return (await response.json()) as BudgetSearchResponse;
