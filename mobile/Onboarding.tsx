@@ -177,9 +177,9 @@ const styles = StyleSheet.create({
   slide: {
     flex: 1,
     padding: 28,
-    paddingTop: 48,
-    justifyContent: "center",
-    gap: 32,
+    paddingTop: 72,
+    justifyContent: "flex-start",
+    gap: 40,
   },
   eyebrow: {
     color: COLORS.good,

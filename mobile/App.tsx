@@ -178,13 +178,14 @@ export default function App() {
             sort,
             limit: 30,
             q: query.trim() || undefined,
+            knownCities: cities,
           });
       setState({ status: "success", data: result });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unknown error.";
       setState({ status: "error", message });
     }
-  }, [budget, query, customCoords, selectedCitySlug, sort]);
+  }, [budget, query, customCoords, selectedCitySlug, sort, cities]);
 
   if (showOnboarding === null) {
     return <SafeAreaView style={styles.safeArea} />;

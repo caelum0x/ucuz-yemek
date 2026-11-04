@@ -4,19 +4,24 @@
 // native UI. See ../../README.md for the backend's real data sources
 // (Trendyol Go live search, Yemeksepeti curated-chain sitemap lookup).
 //
-// STATUS (2026-11-04, see ~/products/plans/ucuz-yemek.md): this host is the
-// public *web frontend* (web/index.html), which is currently DOWN (confirmed
-// dead, HTTP 525) -- it was never meant to serve the mobile app's API calls
-// in the first place, it just happened to also expose the backend's routes.
-// A separate, dedicated public API host for this backend already exists and
-// is live (https://ucuz-yemek-backend.ereboslab.com, verified via curl:
-// /healthz -> 200, /api/budget -> real JSON, cache_backed:true) but pointing
-// the app at it is an explicit decision left open for the owner -- see the
-// plan file's open item -- so this constant intentionally still points at
-// the dead host. Every call below fails loudly with a clear "service
-// unavailable" ApiError instead of hanging or failing silently; nothing here
-// assumes the host above is reachable.
-export const API_BASE_URL = "https://ucuz-yemek.ereboslab.com";
+// STATUS (2026-11-04, see ~/products/plans/ucuz-yemek.md): the old host
+// (ucuz-yemek.ereboslab.com) was the public *web frontend*, taken down on
+// purpose by the owner -- it was never meant to serve the mobile app's API
+// calls, it just happened to also expose the backend's routes. The
+// dedicated, API-only public host for this backend is live right now
+// (verified via curl: /healthz -> 200, /api/budget -> real JSON,
+// cache_backed:true) with zero new infra/deploy -- this is that host.
+// NOTE: that host is still running the pre-JSON-API-expansion image (deploy
+// to main's HEAD is pending separate owner approval, see plan), so
+// /api/cities and /api/cities/{slug} 404 there for now; fetchCities() and
+// searchCityBudget() below fall back to the real static city list
+// (lib/locations.ts) and the already-live /api/budget endpoint so city
+// search keeps working without depending on that pending redeploy. Every
+// call still fails loudly with a clear "service unavailable" ApiError
+// instead of hanging or failing silently.
+import { FALLBACK_CITIES } from "./locations";
+
+export const API_BASE_URL = "https://ucuz-yemek-backend.ereboslab.com";
 
 export type SortMode =
   | "closest_to_budget"
@@ -40,8 +45,8 @@ export interface BudgetSearchResponse {
   latitude: number;
   longitude: number;
   sort: SortMode;
-  trendyol_restaurants_checked: number;
-  yemeksepeti_chains_checked: number;
+  trendyol_restaurants_checked: string[];
+  yemeksepeti_chains_checked: string[];
   total_affordable_items_found: number;
   items: AffordableItem[];
   platform_errors: Record<string, string> | null;
@@ -90,8 +95,8 @@ export interface CitySearchResponse {
   city: City;
   budget_try: number;
   sort: SortMode;
-  trendyol_restaurants_checked: number;
-  yemeksepeti_chains_checked: number;
+  trendyol_restaurants_checked: string[];
+  yemeksepeti_chains_checked: string[];
   total_affordable_items_found: number;
   items: AffordableItem[];
   platform_errors: Record<string, string> | null;
@@ -114,12 +119,22 @@ async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(detail, response.status);
 }
 
+/**
+ * Fetches the live city list from GET /api/cities. If that route isn't
+ * deployed yet on the current host (404 -- see API_BASE_URL comment above)
+ * this falls back to the real static list in lib/locations.ts instead of
+ * leaving the city picker empty; a real network/5xx failure still throws so
+ * the caller can show the honest "service unavailable" state.
+ */
 export async function fetchCities(): Promise<City[]> {
   let response: Response;
   try {
     response = await fetch(new URL("/api/cities", API_BASE_URL).toString());
   } catch {
     throw new ApiError(NETWORK_UNREACHABLE_MESSAGE, null);
+  }
+  if (response.status === 404) {
+    return FALLBACK_CITIES;
   }
   if (!response.ok) {
     throw await toApiError(response);
@@ -128,30 +143,47 @@ export async function fetchCities(): Promise<City[]> {
   return body.cities;
 }
 
+/**
+ * City-scoped budget search. The dedicated GET /api/cities/{slug} route
+ * isn't deployed on the current host yet (see API_BASE_URL comment above),
+ * so this reuses the already-live GET /api/budget with the selected city's
+ * real coordinates (from the live list when available, otherwise the same
+ * static real coordinates in lib/locations.ts) rather than depending on
+ * that pending redeploy.
+ */
 export async function searchCityBudget(params: {
   citySlug: string;
   budget: number;
   sort?: SortMode;
   limit?: number;
   q?: string;
+  knownCities?: readonly City[];
 }): Promise<CitySearchResponse> {
-  const { citySlug, budget, sort = "best_value", limit = 30, q } = params;
-  const url = new URL(`/api/cities/${encodeURIComponent(citySlug)}`, API_BASE_URL);
-  url.searchParams.set("budget", String(budget));
-  url.searchParams.set("sort", sort);
-  url.searchParams.set("limit", String(limit));
-  if (q) url.searchParams.set("q", q);
+  const { citySlug, budget, sort = "best_value", limit = 30, q, knownCities } = params;
+  const city = (knownCities ?? FALLBACK_CITIES).find((c) => c.slug === citySlug);
+  if (!city) {
+    throw new ApiError(`Unknown city: ${citySlug}`, 404);
+  }
 
-  let response: Response;
-  try {
-    response = await fetch(url.toString());
-  } catch {
-    throw new ApiError(NETWORK_UNREACHABLE_MESSAGE, null);
-  }
-  if (!response.ok) {
-    throw await toApiError(response);
-  }
-  return (await response.json()) as CitySearchResponse;
+  const budgetResult = await searchBudget({
+    budget,
+    lat: city.latitude,
+    lon: city.longitude,
+    sort,
+    limit,
+    q,
+  });
+
+  return {
+    city,
+    budget_try: budgetResult.budget_try,
+    sort: budgetResult.sort,
+    trendyol_restaurants_checked: budgetResult.trendyol_restaurants_checked,
+    yemeksepeti_chains_checked: budgetResult.yemeksepeti_chains_checked,
+    total_affordable_items_found: budgetResult.total_affordable_items_found,
+    items: budgetResult.items,
+    platform_errors: budgetResult.platform_errors,
+  };
 }
 
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
