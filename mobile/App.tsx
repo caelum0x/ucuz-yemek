@@ -23,12 +23,15 @@ import {
 import {
   AffordableItem,
   ApiError,
-  BudgetSearchResponse,
+  City,
   SortMode,
+  fetchCities,
+  nearestCity,
   platformLabel,
   searchBudget,
+  searchCityBudget,
 } from "./lib/api";
-import { PRESET_LOCATIONS } from "./lib/locations";
+import { FALLBACK_CITY_SLUG } from "./lib/locations";
 import Onboarding from "./Onboarding";
 import { hasSeenOnboarding, markOnboardingSeen } from "./lib/onboarding";
 
@@ -52,16 +55,22 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: "priciest_first", label: "Önce pahalı" },
 ];
 
+interface NormalizedResult {
+  items: AffordableItem[];
+  platform_errors: Record<string, string> | null;
+}
+
 type SearchState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "success"; data: BudgetSearchResponse };
+  | { status: "success"; data: NormalizedResult };
 
 export default function App() {
   const [budget, setBudget] = useState("300");
   const [query, setQuery] = useState("");
-  const [locationIndex, setLocationIndex] = useState(0);
+  const [cities, setCities] = useState<City[]>([]);
+  const [selectedCitySlug, setSelectedCitySlug] = useState<string>(FALLBACK_CITY_SLUG);
   const [sort, setSort] = useState<SortMode>("best_value");
   const [customCoords, setCustomCoords] = useState<{ lat: number; lon: number } | null>(
     null
@@ -74,15 +83,33 @@ export default function App() {
     hasSeenOnboarding().then((seen) => setShowOnboarding(!seen));
   }, []);
 
+  useEffect(() => {
+    fetchCities()
+      .then((list) => setCities(list))
+      .catch(() => {
+        // Real city list unavailable -- the FALLBACK_CITY_SLUG default still
+        // lets city-based search work once the backend is reachable again.
+      });
+  }, []);
+
   const finishOnboarding = useCallback(() => {
     setShowOnboarding(false);
     markOnboardingSeen();
   }, []);
 
-  const activeLocation = useMemo(() => {
-    if (customCoords) return { label: "My location", ...customCoords };
-    return PRESET_LOCATIONS[locationIndex];
-  }, [customCoords, locationIndex]);
+  const activeCity = useMemo(
+    () => cities.find((c) => c.slug === selectedCitySlug) ?? null,
+    [cities, selectedCitySlug]
+  );
+
+  const nearestCityToDevice = useMemo(
+    () => (customCoords ? nearestCity(customCoords.lat, customCoords.lon, cities) : null),
+    [customCoords, cities]
+  );
+
+  const activeLocationLabel = customCoords
+    ? `Cihaz konumum${nearestCityToDevice ? ` (en yakın: ${nearestCityToDevice.display_name})` : ""}`
+    : activeCity?.display_name ?? "İstanbul";
 
   const useDeviceLocation = useCallback(async () => {
     setLocatingDevice(true);
@@ -91,23 +118,29 @@ export default function App() {
       if (status !== "granted") {
         setState({
           status: "error",
-          message: "Location permission denied. Pick a district instead.",
+          message: "Location permission denied. Pick a city instead.",
         });
         return;
       }
       const position = await Location.getCurrentPositionAsync({});
-      setCustomCoords({
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-      });
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      setCustomCoords({ lat, lon });
+      const nearest = nearestCity(lat, lon, cities);
+      if (nearest) setSelectedCitySlug(nearest.slug);
     } catch {
       setState({
         status: "error",
-        message: "Could not read device location. Pick a district instead.",
+        message: "Could not read device location. Pick a city instead.",
       });
     } finally {
       setLocatingDevice(false);
     }
+  }, [cities]);
+
+  const pickCity = useCallback((slug: string) => {
+    setCustomCoords(null);
+    setSelectedCitySlug(slug);
   }, []);
 
   const runSearch = useCallback(async () => {
@@ -119,20 +152,28 @@ export default function App() {
 
     setState({ status: "loading" });
     try {
-      const data = await searchBudget({
-        budget: parsedBudget,
-        lat: activeLocation.lat,
-        lon: activeLocation.lon,
-        sort,
-        limit: 30,
-        q: query.trim() || undefined,
-      });
-      setState({ status: "success", data });
+      const result: NormalizedResult = customCoords
+        ? await searchBudget({
+            budget: parsedBudget,
+            lat: customCoords.lat,
+            lon: customCoords.lon,
+            sort,
+            limit: 30,
+            q: query.trim() || undefined,
+          })
+        : await searchCityBudget({
+            citySlug: selectedCitySlug,
+            budget: parsedBudget,
+            sort,
+            limit: 30,
+            q: query.trim() || undefined,
+          });
+      setState({ status: "success", data: result });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unknown error.";
       setState({ status: "error", message });
     }
-  }, [budget, query, activeLocation, sort]);
+  }, [budget, query, customCoords, selectedCitySlug, sort]);
 
   if (showOnboarding === null) {
     return <SafeAreaView style={styles.safeArea} />;
@@ -155,11 +196,9 @@ export default function App() {
             onBudgetChange={setBudget}
             query={query}
             onQueryChange={setQuery}
-            locationIndex={locationIndex}
-            onPickLocation={(idx) => {
-              setLocationIndex(idx);
-              setCustomCoords(null);
-            }}
+            cities={cities}
+            selectedCitySlug={selectedCitySlug}
+            onPickCity={pickCity}
             usingDeviceLocation={!!customCoords}
             locatingDevice={locatingDevice}
             onUseDeviceLocation={useDeviceLocation}
@@ -167,7 +206,7 @@ export default function App() {
             onSortChange={setSort}
             onSubmit={runSearch}
             loading={state.status === "loading"}
-            activeLocationLabel={activeLocation.label}
+            activeLocationLabel={activeLocationLabel}
           />
         }
         ListFooterComponent={
@@ -190,8 +229,9 @@ function Header(props: {
   onBudgetChange: (v: string) => void;
   query: string;
   onQueryChange: (v: string) => void;
-  locationIndex: number;
-  onPickLocation: (idx: number) => void;
+  cities: City[];
+  selectedCitySlug: string;
+  onPickCity: (slug: string) => void;
   usingDeviceLocation: boolean;
   locatingDevice: boolean;
   onUseDeviceLocation: () => void;
@@ -231,18 +271,18 @@ function Header(props: {
           autoCorrect={false}
         />
 
-        <Text style={styles.label}>Konum</Text>
+        <Text style={styles.label}>Şehir ({props.cities.length || 20} gerçek şehir)</Text>
         <View style={styles.chipRow}>
-          {PRESET_LOCATIONS.map((loc, idx) => {
-            const active = idx === props.locationIndex && !props.usingDeviceLocation;
+          {props.cities.map((city) => {
+            const active = city.slug === props.selectedCitySlug && !props.usingDeviceLocation;
             return (
               <Pressable
-                key={loc.label}
-                onPress={() => props.onPickLocation(idx)}
+                key={city.slug}
+                onPress={() => props.onPickCity(city.slug)}
                 style={[styles.chip, active && styles.chipActive]}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {loc.label}
+                  {city.display_name}
                 </Text>
               </Pressable>
             );
