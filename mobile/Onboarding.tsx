@@ -33,10 +33,10 @@ interface Slide {
 function getSlides(): Slide[] {
   return [
     {
-      eyebrow: "The problem",
-      title: "No single app tells you what you can actually eat",
+      eyebrow: "Sorun",
+      title: "Hangi uygulamada ne kadar yiyebilirsin, hiç net değil",
       body:
-        "Checking Trendyol Go, then Yemeksepeti, then comparing prices by hand takes forever. Same budget, different answer every time.",
+        "Trendyol Go, Yemeksepeti... her uygulamaya tek tek girip fiyat karşılaştırmak zaman alır. Bütçen aynı, sonuç her yerde farklı.",
       mock: (
         <View style={styles.mockRow}>
           <View style={[styles.mockPill, { opacity: 0.4 }]}>
@@ -49,17 +49,17 @@ function getSlides(): Slide[] {
       ),
     },
     {
-      eyebrow: "How it works",
-      title: "Enter a budget, pick a location",
-      body: "One screen: type your budget in TRY, then pick your neighborhood or your live location.",
+      eyebrow: "Nasıl çalışır",
+      title: "Bütçeni yaz, konumunu seç",
+      body: "Tek ekranda bütçeni TRY olarak gir, mahalleni veya anlık konumunu seç.",
       mock: (
         <View style={styles.mockCard}>
-          <Text style={styles.mockExampleTag}>EXAMPLE, NOT LIVE DATA</Text>
-          <Text style={styles.mockLabel}>Budget (TRY)</Text>
+          <Text style={styles.mockExampleTag}>ÖRNEK, CANLI VERİ DEĞİL</Text>
+          <Text style={styles.mockLabel}>Bütçe (TRY)</Text>
           <View style={styles.mockInput}>
             <Text style={styles.mockInputText}>300</Text>
           </View>
-          <Text style={styles.mockLabel}>Location</Text>
+          <Text style={styles.mockLabel}>Konum</Text>
           <View style={styles.mockRow}>
             <View style={styles.mockPillStatic}>
               <Text style={styles.mockPillStaticTextActive}>Kadıköy</Text>
@@ -72,23 +72,23 @@ function getSlides(): Slide[] {
       ),
     },
     {
-      eyebrow: "The result",
-      title: "See what you can eat, at real live prices",
+      eyebrow: "Sonuç",
+      title: "Gerçek, canlı fiyatlarla ne yiyebileceğini gör",
       body:
-        "Nothing is fabricated: every real result is pulled live from Trendyol Go and Yemeksepeti the moment you search.",
+        "Hiçbir fiyat uydurulmaz: her sonuç, aramayı yaptığın anda Trendyol Go ve Yemeksepeti'nden gerçek zamanlı çekilir.",
       mock: (
         <View style={styles.mockCard}>
-          <Text style={styles.mockExampleTag}>EXAMPLE, NOT LIVE DATA</Text>
+          <Text style={styles.mockExampleTag}>ÖRNEK, CANLI VERİ DEĞİL</Text>
           <View style={styles.mockResultRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.mockResultName}>Footlong Sub Menu</Text>
+              <Text style={styles.mockResultName}>Footlong Sub Menü</Text>
               <Text style={styles.mockResultSub}>Subway (Kadıköy) · 0.8 km</Text>
             </View>
             <Text style={styles.mockResultPrice}>145 TRY</Text>
           </View>
           <View style={styles.mockResultRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.mockResultName}>Whopper Menu</Text>
+              <Text style={styles.mockResultName}>Whopper Menü</Text>
               <Text style={styles.mockResultSub}>Burger King · Yemeksepeti</Text>
             </View>
             <Text style={styles.mockResultPrice}>189 TRY</Text>
@@ -149,7 +149,7 @@ export default function Onboarding({ onFinish }: { onFinish: () => void }) {
         <View style={styles.footerButtons}>
           {!isLast ? (
             <Pressable onPress={onFinish} style={styles.skipButton}>
-              <Text style={styles.skipButtonText}>Skip</Text>
+              <Text style={styles.skipButtonText}>Geç</Text>
             </Pressable>
           ) : (
             <View style={styles.skipButton} />
@@ -158,7 +158,7 @@ export default function Onboarding({ onFinish }: { onFinish: () => void }) {
             onPress={() => (isLast ? onFinish() : goTo(index + 1))}
             style={styles.primaryButton}
           >
-            <Text style={styles.primaryButtonText}>{isLast ? "Get started" : "Next"}</Text>
+            <Text style={styles.primaryButtonText}>{isLast ? "Başla" : "İleri"}</Text>
           </Pressable>
         </View>
       </View>

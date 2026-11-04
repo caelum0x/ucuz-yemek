@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ucuz Yemek — what can I eat for this budget</title>
-<meta name="description" content="Enter a budget in TRY and a location. See real, live affordable items across Trendyol Go and Yemeksepeti, ranked by value.">
+<title>Ucuz Yemek — bu bütçeyle ne yiyebilirim</title>
+<meta name="description" content="Bütçeni TRY olarak gir, konumunu seç. Trendyol Go ve Yemeksepeti üzerindeki gerçek, canlı, uygun fiyatlı ürünleri değerine göre sıralanmış gör.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -219,7 +219,7 @@
 </style>
 </head>
 <body>
-<a class="skip-link" href="#main-content">Skip to content</a>
+<a class="skip-link" href="#main-content">İçeriğe geç</a>
 <nav aria-label="Şehirler ve sayfalar" style="max-width:720px;margin:0 auto;padding:20px 24px 0;display:flex;flex-wrap:wrap;gap:16px;font-size:14px;">
   <a href="/sehir/istanbul" style="color:var(--text-dim);text-decoration:none;">İstanbul</a>
   <a href="/sehir/ankara" style="color:var(--text-dim);text-decoration:none;">Ankara</a>
@@ -232,66 +232,67 @@
 </nav>
 <main id="main-content">
   <header class="hero">
-    <h1>What can I eat for this budget</h1>
-    <p class="sub">Enter a budget in Turkish lira and a location. See real, live items you can
-      actually afford right now on Trendyol Go and Yemeksepeti, in one list.</p>
+    <h1>Bu bütçeyle ne yiyebilirim</h1>
+    <p class="sub">Bütçeni TRY olarak gir, konumunu seç. Trendyol Go ve Yemeksepeti üzerinde şu an
+      gerçekten yiyebileceğin gerçek, canlı ürünleri tek listede gör.</p>
   </header>
 
   <form class="search" id="search-form">
     <div class="field-row">
       <div class="field">
-        <label for="budget">Budget (TRY)</label>
+        <label for="budget">Bütçe (TRY)</label>
         <input type="number" id="budget" name="budget" min="1" max="10000" step="1" value="300" required inputmode="decimal">
       </div>
       <div class="field">
-        <label for="location">Location</label>
+        <label for="location">Konum</label>
         <select id="location" name="location">
           <option value="41.0422,29.0061">Beşiktaş, İstanbul</option>
           <option value="40.9833,29.0333">Kadıköy, İstanbul</option>
           <option value="41.0766,29.0577">Şişli, İstanbul</option>
           <option value="40.9923,29.1244">Ataşehir, İstanbul</option>
-          <option value="custom">Custom coordinates</option>
+          <option value="custom">Özel koordinat</option>
         </select>
       </div>
     </div>
     <div class="field-row">
       <div class="field">
-        <label for="q">Search (optional)</label>
-        <input type="text" id="q" name="q" placeholder="e.g. burger, subway, döner" autocomplete="off">
+        <label for="q">Ara (opsiyonel)</label>
+        <input type="text" id="q" name="q" placeholder="örn. burger, subway, döner" autocomplete="off">
       </div>
     </div>
     <div class="field-row" id="custom-coords" style="display:none;">
       <div class="field">
-        <label for="lat">Latitude</label>
+        <label for="lat">Enlem</label>
         <input type="number" id="lat" name="lat" step="0.0001" placeholder="41.0422">
       </div>
       <div class="field">
-        <label for="lon">Longitude</label>
+        <label for="lon">Boylam</label>
         <input type="number" id="lon" name="lon" step="0.0001" placeholder="29.0061">
       </div>
       <div class="field">
-        <label for="sort">Sort by</label>
+        <label for="sort">Sırala</label>
         <select id="sort" name="sort">
-          <option value="best_value" selected>Best value (price + distance + rating)</option>
-          <option value="closest_to_budget">Priciest item still in budget</option>
-          <option value="cheapest_first">Cheapest first</option>
-          <option value="priciest_first">Priciest first</option>
+          <option value="best_value" selected>En iyi değer (fiyat + mesafe + puan)</option>
+          <option value="closest_to_budget">Bütçeye en yakın (en pahalı uygun ürün)</option>
+          <option value="cheapest_first">Önce ucuz</option>
+          <option value="priciest_first">Önce pahalı</option>
         </select>
       </div>
     </div>
-    <button class="submit" type="submit" id="submit-btn">See what I can eat</button>
-    <p class="scope-note">Trendyol Go: real nearest restaurants to this location, sorted by real
-      distance (not the platform's own relevance/sponsored order). Yemeksepeti: a curated set of
-      popular chains, since that platform has no real location search yet.</p>
+    <button class="submit" type="submit" id="submit-btn">Ne yiyebilirim, göster</button>
+    <p class="scope-note">Trendyol Go: konuma en yakın gerçek restoranlar, gerçek mesafeye göre
+      sıralanır (platformun kendi öne çıkan/sponsorlu sıralaması değil). Yemeksepeti: popüler
+      zincirlerden seçilmiş bir liste, çünkü bu platformda henüz gerçek bir konum araması yok.</p>
   </form>
 
   <section class="results" id="results" aria-live="polite"></section>
 
   <footer>
-    Real cross platform same item comparison for a specific chain is also available via the API at
+    Belirli bir zincir için platformlar arası aynı ürün karşılaştırması API üzerinden de mevcut:
     <code>/api/match?chain=subway&amp;lat=41.0422&amp;lon=29.0061</code>.
-    Source: <a href="https://github.com/caelum0x/ucuz-yemek">github.com/caelum0x/ucuz-yemek</a>.
-    No fabricated or cached data — every search is a live fetch made at request time.
+    Kaynak kod: <a href="https://github.com/caelum0x/ucuz-yemek">github.com/caelum0x/ucuz-yemek</a>.
+    Hiçbir veri uydurulmaz veya önbellekten gösterilmez — her arama, isteğin yapıldığı anda
+    gerçek zamanlı çekilir.
   </footer>
 </main>
 
@@ -321,26 +322,26 @@
 
   function renderError(message) {
     resultsEl.innerHTML =
-      '<div class="state-box error">Search failed. ' + escapeHtml(message) + '</div>';
+      '<div class="state-box error">Arama başarısız oldu. ' + escapeHtml(message) + '</div>';
   }
 
   function renderEmpty(platformErrors) {
     resultsEl.innerHTML =
       platformWarningHtml(platformErrors) +
-      '<div class="state-box">No real affordable items found for this budget and location ' +
-      "right now. Try a larger budget or a different location.</div>";
+      '<div class="state-box">Bu bütçe ve konum için şu an uygun fiyatlı gerçek bir ürün ' +
+      "bulunamadı. Daha yüksek bir bütçe veya farklı bir konum dene.</div>";
   }
 
   function platformWarningHtml(platformErrors) {
     if (!platformErrors) return "";
     var names = Object.keys(platformErrors);
     if (names.length === 0) return "";
-    var list = names.map(platformLabel).join(" and ");
+    var list = names.map(platformLabel).join(" ve ");
     return (
       '<div class="state-box warning">' +
       escapeHtml(list) +
-      " is temporarily unavailable, so results below are from the other platform only " +
-      "(nothing is fabricated to fill the gap).</div>"
+      " şu anda geçici olarak erişilemiyor, aşağıdaki sonuçlar sadece diğer platformdan " +
+      "(hiçbir veri uydurulmadı).</div>"
     );
   }
 
@@ -361,12 +362,12 @@
     }
 
     var metaText =
-      data.total_affordable_items_found +
-      " real items found at or under " +
       data.budget_try +
-      " TRY, showing the top " +
+      " TRY ve altında " +
+      data.total_affordable_items_found +
+      " gerçek ürün bulundu, değere göre ilk " +
       data.items.length +
-      " by value.";
+      " tanesi gösteriliyor.";
 
     var itemsHtml = data.items
       .map(function (item) {
@@ -403,7 +404,7 @@
 
     var budget = parseFloat(document.getElementById("budget").value);
     if (!budget || budget <= 0) {
-      renderError("Enter a budget greater than 0.");
+      renderError("0'dan büyük bir bütçe gir.");
       return;
     }
 
@@ -412,7 +413,7 @@
       lat = parseFloat(latInput.value);
       lon = parseFloat(lonInput.value);
       if (isNaN(lat) || isNaN(lon)) {
-        renderError("Enter both a latitude and a longitude.");
+        renderError("Hem enlem hem boylam gir.");
         return;
       }
     } else {
@@ -422,7 +423,7 @@
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = "Searching live...";
+    submitBtn.textContent = "Canlı aranıyor...";
     skeleton();
 
     var sort = document.getElementById("sort").value;
@@ -439,18 +440,18 @@
       .then(function (response) {
         if (!response.ok) {
           return response.json().then(function (body) {
-            throw new Error(body.detail || "Request failed with status " + response.status);
+            throw new Error(body.detail || "İstek başarısız oldu, durum kodu " + response.status);
           });
         }
         return response.json();
       })
       .then(renderResults)
       .catch(function (err) {
-        renderError(err.message || "Unknown error.");
+        renderError(err.message || "Bilinmeyen hata.");
       })
       .finally(function () {
         submitBtn.disabled = false;
-        submitBtn.textContent = "See what I can eat";
+        submitBtn.textContent = "Ne yiyebilirim, göster";
       });
   });
 })();

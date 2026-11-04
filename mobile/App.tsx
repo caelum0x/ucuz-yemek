@@ -46,10 +46,10 @@ const COLORS = {
 };
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: "closest_to_budget", label: "Most food for the money" },
-  { value: "best_value", label: "Best value" },
-  { value: "cheapest_first", label: "Cheapest first" },
-  { value: "priciest_first", label: "Priciest first" },
+  { value: "best_value", label: "En iyi değer" },
+  { value: "closest_to_budget", label: "Bütçeye en yakın" },
+  { value: "cheapest_first", label: "Önce ucuz" },
+  { value: "priciest_first", label: "Önce pahalı" },
 ];
 
 type SearchState =
@@ -203,14 +203,14 @@ function Header(props: {
 }) {
   return (
     <View>
-      <Text style={styles.title}>What can I eat for this budget?</Text>
+      <Text style={styles.title}>Bu bütçeyle ne yiyebilirim?</Text>
       <Text style={styles.subtitle}>
-        Enter a budget in TRY and pick a location. See real, live items you can actually
-        afford right now on Trendyol Go and Yemeksepeti.
+        Bütçeni TRY olarak gir, konumunu seç. Trendyol Go ve Yemeksepeti üzerindeki gerçek,
+        canlı fiyatlarla şu an yiyebileceğin şeyleri gör.
       </Text>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Budget (TRY)</Text>
+        <Text style={styles.label}>Bütçe (TRY)</Text>
         <TextInput
           value={props.budget}
           onChangeText={props.onBudgetChange}
@@ -220,18 +220,18 @@ function Header(props: {
           style={styles.input}
         />
 
-        <Text style={styles.label}>Search (optional)</Text>
+        <Text style={styles.label}>Ara (opsiyonel)</Text>
         <TextInput
           value={props.query}
           onChangeText={props.onQueryChange}
-          placeholder="e.g. burger, subway, döner"
+          placeholder="örn. burger, subway, döner"
           placeholderTextColor={COLORS.textFaint}
           style={styles.input}
           autoCapitalize="none"
           autoCorrect={false}
         />
 
-        <Text style={styles.label}>Location</Text>
+        <Text style={styles.label}>Konum</Text>
         <View style={styles.chipRow}>
           {PRESET_LOCATIONS.map((loc, idx) => {
             const active = idx === props.locationIndex && !props.usingDeviceLocation;
@@ -257,14 +257,14 @@ function Header(props: {
               <Text
                 style={[styles.chipText, props.usingDeviceLocation && styles.chipTextActive]}
               >
-                Use my location
+                Konumumu kullan
               </Text>
             )}
           </Pressable>
         </View>
-        <Text style={styles.scopeNote}>Selected: {props.activeLocationLabel}</Text>
+        <Text style={styles.scopeNote}>Seçili: {props.activeLocationLabel}</Text>
 
-        <Text style={styles.label}>Sort by</Text>
+        <Text style={styles.label}>Sırala</Text>
         <View style={styles.chipRow}>
           {SORT_OPTIONS.map((opt) => {
             const active = opt.value === props.sort;
@@ -290,14 +290,14 @@ function Header(props: {
           {props.loading ? (
             <ActivityIndicator size="small" color={COLORS.bg} />
           ) : (
-            <Text style={styles.submitButtonText}>See what I can eat</Text>
+            <Text style={styles.submitButtonText}>Ne yiyebilirim, göster</Text>
           )}
         </Pressable>
 
         <Text style={styles.scopeNote}>
-          Trendyol Go: real nearest restaurants to this location, sorted by real distance.
-          Yemeksepeti: a curated set of popular chains, since that platform has no real
-          location search yet.
+          Trendyol Go: konuma en yakın gerçek restoranlar, gerçek mesafeye göre sıralanır.
+          Yemeksepeti: popüler zincirlerden seçilmiş bir liste (bu platformda henüz gerçek bir
+          konum arama API&apos;si yok).
         </Text>
       </View>
     </View>
@@ -308,7 +308,7 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
   if (state.status === "idle") {
     return (
       <Text style={styles.emptyHint}>
-        Enter a budget and location, then tap &quot;See what I can eat&quot;.
+        Bütçeni ve konumunu seç, sonra &quot;Ne yiyebilirim, göster&quot;e dokun.
       </Text>
     );
   }
@@ -322,7 +322,7 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
   if (state.status === "error") {
     return (
       <View style={[styles.stateBox, styles.stateBoxError]}>
-        <Text style={styles.stateBoxErrorText}>Search failed. {state.message}</Text>
+        <Text style={styles.stateBoxErrorText}>Arama başarısız oldu. {state.message}</Text>
       </View>
     );
   }
@@ -332,8 +332,8 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
         <PlatformWarning errors={state.data.platform_errors} />
         <View style={styles.stateBox}>
           <Text style={styles.stateBoxText}>
-            No real affordable items found for this budget and location right now. Try a
-            larger budget or a different location.
+            Bu bütçe ve konum için şu an uygun fiyatlı gerçek bir ürün bulunamadı. Daha yüksek
+            bir bütçe veya farklı bir konum dene.
           </Text>
         </View>
       </View>
@@ -345,12 +345,12 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
 function PlatformWarning({ errors }: { errors: Record<string, string> | null }) {
   const names = errors ? Object.keys(errors) : [];
   if (names.length === 0) return null;
-  const label = names.map((n) => platformLabel(n as any)).join(" and ");
+  const label = names.map((n) => platformLabel(n as any)).join(" ve ");
   return (
     <View style={[styles.stateBox, styles.stateBoxWarning]}>
       <Text style={styles.stateBoxWarningText}>
-        {label} is temporarily unavailable, so results below are from the other platform only
-        (nothing is fabricated to fill the gap).
+        {label} şu anda geçici olarak erişilemiyor, aşağıdaki sonuçlar sadece diğer platformdan
+        (hiçbir veri uydurulmadı).
       </Text>
     </View>
   );
