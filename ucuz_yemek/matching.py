@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from ucuz_yemek import jev
 
@@ -229,3 +230,33 @@ def match_menus(items_a: list[MenuItem], items_b: list[MenuItem]) -> list[MatchR
     """Convenience wrapper returning just the winning matches. Prefer
     `match_menus_detailed` when the caller wants to report pipeline stats."""
     return match_menus_detailed(items_a, items_b).matches
+
+
+def serialize_summary(summary: MatchSummary) -> dict[str, Any]:
+    """Shared real-match-result JSON shaping, used by every HTTP endpoint
+    that returns a MatchSummary (api/index.py's /api/match and
+    /api/match-by-url, ucuz_yemek/json_api.py's /api/chains/{slug}/compare)
+    -- one real serialization, no duplicated logic per endpoint."""
+    matches: list[dict[str, Any]] = []
+    for pair in summary.matches:
+        a, b = pair.item_a, pair.item_b
+        matches.append(
+            {
+                "trendyol_name": a.name,
+                "yemeksepeti_name": b.name,
+                "trendyol_price_try": a.price_try,
+                "yemeksepeti_price_try": b.price_try,
+                "cheaper_platform": pair.cheaper_platform,
+                "price_diff_try": pair.price_diff_try,
+                "method": pair.method,
+                "confidence": round(pair.confidence, 3),
+            }
+        )
+    return {
+        "candidate_pairs": summary.candidate_pairs,
+        "auto_accepted": summary.auto_accepted,
+        "jev_accepted": summary.jev_accepted,
+        "jev_rejected": summary.jev_rejected,
+        "needs_review_count": len(summary.needs_review),
+        "matches": matches,
+    }

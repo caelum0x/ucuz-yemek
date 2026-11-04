@@ -16,7 +16,15 @@ Endpoints:
                              real live affordability list out)
     GET /api/budget       -- real affordable-items search (JSON)
     GET /api/match        -- real same-item cross-platform comparison (JSON)
+    GET /api/match-by-url -- real same-item comparison for two caller-given
+                             restaurant identities (JSON)
     GET /api/healthz      -- liveness check
+
+Real combinatorial JSON surface (see ucuz_yemek/json_api.py for the full
+list -- /api/cities, /api/cities/{slug}, /api/chains, /api/chains/{slug},
+/api/chains/{slug}/compare, /api/stats) mounted below via `json_api_router`,
+the same "one real APIRouter, no duplicated business logic" pattern already
+used for `pages_router`.
 """
 
 from __future__ import annotations
@@ -40,7 +48,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ucuz_yemek import budget as budget_module  # noqa: E402
-from ucuz_yemek import matching, service  # noqa: E402
+from ucuz_yemek import service  # noqa: E402
+from ucuz_yemek.json_api import router as json_api_router  # noqa: E402
+from ucuz_yemek.matching import serialize_summary  # noqa: E402
 from ucuz_yemek.pages import router as pages_router  # noqa: E402
 
 app = FastAPI(
@@ -205,38 +215,9 @@ def get_match(
             "yemeksepeti_restaurant_url": result.yemeksepeti_url,
             "trendyol_item_count": result.trendyol_item_count,
             "yemeksepeti_item_count": result.yemeksepeti_item_count,
-            **_serialize_match_summary(result.summary),
+            **serialize_summary(result.summary),
         }
     )
-
-
-def _serialize_match_summary(summary: matching.MatchSummary) -> dict[str, Any]:
-    """Shared real-match-result shaping used by both /api/match (chain-name
-    lookup) and /api/match-by-url (direct restaurant identities) -- same
-    underlying matching.MatchSummary either way, no duplicated logic."""
-    matches: list[dict[str, Any]] = []
-    for pair in summary.matches:
-        a, b = pair.item_a, pair.item_b
-        matches.append(
-            {
-                "trendyol_name": a.name,
-                "yemeksepeti_name": b.name,
-                "trendyol_price_try": a.price_try,
-                "yemeksepeti_price_try": b.price_try,
-                "cheaper_platform": pair.cheaper_platform,
-                "price_diff_try": pair.price_diff_try,
-                "method": pair.method,
-                "confidence": round(pair.confidence, 3),
-            }
-        )
-    return {
-        "candidate_pairs": summary.candidate_pairs,
-        "auto_accepted": summary.auto_accepted,
-        "jev_accepted": summary.jev_accepted,
-        "jev_rejected": summary.jev_rejected,
-        "needs_review_count": len(summary.needs_review),
-        "matches": matches,
-    }
 
 
 @app.get("/api/match-by-url")
@@ -278,7 +259,7 @@ def get_match_by_url(
             "yemeksepeti_restaurant_url": result.yemeksepeti_url,
             "trendyol_item_count": result.trendyol_item_count,
             "yemeksepeti_item_count": result.yemeksepeti_item_count,
-            **_serialize_match_summary(result.summary),
+            **serialize_summary(result.summary),
         }
     )
 
@@ -298,6 +279,12 @@ def robots_txt() -> str:
     gated behind auth, so there is nothing real to Disallow."""
     return "User-agent: *\nAllow: /\nSitemap: https://ucuz-yemek.ereboslab.com/sitemap.xml\n"
 
+
+# Real combinatorial JSON API surface (city/chain list+detail, chain x city
+# compare, aggregate stats) -- see ucuz_yemek/json_api.py. Kept as a router
+# include for the same reason as pages_router below: the handful of JSON
+# endpoints already defined above stay untouched.
+app.include_router(json_api_router)
 
 # Real, server-rendered multi-page frontend (city pages, chain-comparison
 # pages, static pages, sitemap) -- see ucuz_yemek/pages.py. Kept as a router

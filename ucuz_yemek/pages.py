@@ -153,6 +153,14 @@ def _all_real_locs() -> list[str]:
     return locs
 
 
+def real_page_count() -> int:
+    """Real count of every crawlable HTML route this module (plus the
+    existing `/`) adds -- used by /api/stats (ucuz_yemek/json_api.py) so the
+    JSON surface reports the real same number the sitemap itself serves,
+    not a separately-maintained (and possibly stale) copy."""
+    return len(_all_real_locs())
+
+
 @router.get("/sitemap.xml")
 def sitemap(request: Request):
     return templates.TemplateResponse(

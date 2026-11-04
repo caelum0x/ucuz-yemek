@@ -48,6 +48,7 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from ucuz_yemek import budget, cache_db, refresh_job
+from ucuz_yemek.json_api import router as json_api_router
 
 logger = logging.getLogger("ucuz_yemek.backend")
 
@@ -160,3 +161,11 @@ def trigger_refresh(x_admin_key: str | None = Header(default=None)) -> dict[str,
     if expected and x_admin_key != expected:
         raise HTTPException(status_code=403, detail="missing or incorrect X-Admin-Key header")
     return refresh_job.run_once()
+
+
+# Same real combinatorial JSON API surface the Vercel api/index.py mounts
+# (see ucuz_yemek/json_api.py) -- mirrored here for parity. /api/stats's
+# cache fields are real here (this process always has a reachable
+# DATABASE_URL, see lifespan() above), unlike the typically cache-less
+# Vercel deployment.
+app.include_router(json_api_router)

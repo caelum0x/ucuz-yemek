@@ -24,6 +24,16 @@ uv run uvicorn api.index:app --reload
   but takes a caller-supplied Trendyol Go restaurant id/URL and a Yemeksepeti
   restaurant URL directly — not limited to the curated chain list, added
   2026-11-04), `GET /api/healthz`, `GET /robots.txt`.
+- `ucuz_yemek/json_api.py` (added 2026-11-04) — the same real 20-city x
+  9-chain combinatorial expansion `ucuz_yemek/pages.py`'s HTML pages already
+  use, as JSON: `GET /api/cities`, `GET /api/cities/{city_slug}` (real live
+  affordable items for one city), `GET /api/chains`, `GET /api/chains/{chain_slug}`
+  (real live Yemeksepeti menu for one chain), `GET /api/chains/{chain_slug}/compare?sehir={city_slug}`
+  (real cross-platform item match for one chain near one city — 180 distinct
+  real addressable resources), `GET /api/stats` (real aggregate numbers:
+  city/chain counts, real page count, real Postgres cache health when a
+  database is actually reachable). Mounted on both `api/index.py` and
+  `backend/server.py`.
 - **Live in production** at `https://ucuz-yemek.ereboslab.com` (migrated off
   Vercel 2026-11-04 — the account is free/Hobby tier, not for real production
   traffic; see "Deploying" below for the real deploy shape). `/api/budget`
@@ -242,6 +252,11 @@ ucuz_yemek/
   refresh_job.py      # real scheduled cache-warming job, 20 cities + 9 chains (expanded 2026-11-04)
   service.py          # shared match pipeline (run_match chain-to-chain, run_match_by_urls by
                       # caller-supplied identity, added 2026-11-04), used by cli.py and api/index.py
+  cities.py           # 20 real, coverage-confirmed cities (slug/lat/lon) for the page + JSON API
+  chains.py           # 9 real curated chains (slug/trendyol_query) for the page + JSON API
+  pages.py            # real server-rendered HTML pages: /sehir/{city}, /karsilastir/{chain}, sitemap
+  json_api.py         # real combinatorial JSON API: /api/cities(/{slug}), /api/chains(/{slug}),
+                      # /api/chains/{slug}/compare, /api/stats (added 2026-11-04)
   cli.py              # argparse CLI: trendyol / yemeksepeti / compare / match / budget
 api/
   index.py         # FastAPI app, self-hosted on railyard-box (migrated off Vercel 2026-11-04):

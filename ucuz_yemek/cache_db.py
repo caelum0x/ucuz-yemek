@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any
 
 import psycopg
 
@@ -75,3 +76,31 @@ def init_schema() -> None:
     with get_connection() as conn:
         conn.execute(SCHEMA_SQL)
         conn.commit()
+
+
+_HEALTH_TABLES: tuple[str, ...] = (
+    "trendyol_restaurant_search_cache",
+    "trendyol_menu_cache",
+    "yemeksepeti_chain_cache",
+)
+
+
+def cache_health() -> dict[str, Any]:
+    """Real row counts + most recent `fetched_at` per cache table --
+    exposed via /api/stats (ucuz_yemek/json_api.py) so a caller can see the
+    actual, current state of the warm cache (how many real restaurant
+    searches/menus/chains are cached, how fresh they are) rather than a
+    fabricated number. Raises on a real connection failure (e.g. no
+    DATABASE_URL reachable, as in local dev / the stateless Vercel
+    deployment) -- the caller decides how to degrade, this function never
+    returns fake zeros to paper over an unreachable database."""
+    with get_connection() as conn:
+        tables: dict[str, Any] = {}
+        for table in _HEALTH_TABLES:
+            row = conn.execute(f"SELECT count(*), max(fetched_at) FROM {table}").fetchone()  # noqa: S608 -- table name is one of the fixed literals in _HEALTH_TABLES, never user input
+            row_count, most_recent_fetch = row if row is not None else (0, None)
+            tables[table] = {
+                "rows": row_count,
+                "most_recent_fetch": most_recent_fetch.isoformat() if most_recent_fetch is not None else None,
+            }
+        return tables
