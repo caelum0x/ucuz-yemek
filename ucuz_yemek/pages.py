@@ -52,6 +52,88 @@ def _canonical_url(request: Request) -> str:
     return f"{_origin(request)}{path}{query}"
 
 
+_PLATFORM_SELLER_NAME = {"trendyol_go": "Trendyol Go", "yemeksepeti": "Yemeksepeti"}
+
+
+def _item_list_jsonld(name: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Real ItemList/Product/Offer structured data for a budget-listing page
+    -- one Product per real item actually rendered on the page, one Offer
+    (seller = the real platform it was fetched from, price = the real live
+    price), never more entries than what the page itself shows."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": name,
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": i + 1,
+                "item": {
+                    "@type": "Product",
+                    "name": item["item_name"],
+                    "offers": {
+                        "@type": "Offer",
+                        "price": str(item["price_try"]),
+                        "priceCurrency": "TRY",
+                        "availability": "https://schema.org/InStock",
+                        "seller": {
+                            "@type": "Organization",
+                            "name": _PLATFORM_SELLER_NAME.get(item["platform"], item["platform"]),
+                        },
+                    },
+                },
+            }
+            for i, item in enumerate(items)
+        ],
+    }
+
+
+def _compare_jsonld(chain_name: str, city_name: str, matches: list[Any]) -> dict[str, Any]:
+    """Real Product/Offer structured data for a chain x city comparison page
+    -- one Product per real matched item, with one Offer per real delivery
+    platform (Trendyol Go + Yemeksepeti), priced with the real live price
+    each platform returned. Only built from `matches` actually resolved by
+    the real matching pipeline (ucuz_yemek/matching.py) -- no pair invented."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": f"{chain_name} fiyat karşılaştırması -- {city_name}",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": i + 1,
+                "item": {
+                    "@type": "Product",
+                    "name": m.item_a.name,
+                    "offers": [
+                        {
+                            "@type": "Offer",
+                            "price": str(m.item_a.price_try),
+                            "priceCurrency": "TRY",
+                            "availability": "https://schema.org/InStock",
+                            "seller": {
+                                "@type": "Organization",
+                                "name": _PLATFORM_SELLER_NAME.get(m.item_a.platform, m.item_a.platform),
+                            },
+                        },
+                        {
+                            "@type": "Offer",
+                            "price": str(m.item_b.price_try),
+                            "priceCurrency": "TRY",
+                            "availability": "https://schema.org/InStock",
+                            "seller": {
+                                "@type": "Organization",
+                                "name": _PLATFORM_SELLER_NAME.get(m.item_b.platform, m.item_b.platform),
+                            },
+                        },
+                    ],
+                },
+            }
+            for i, m in enumerate(matches)
+        ],
+    }
+
+
 @router.get("/sehir/{city_slug}", response_class=Response)
 def city_page(request: Request, city_slug: str):
     city = CITIES_BY_SLUG.get(city_slug)
@@ -90,6 +172,11 @@ def city_page(request: Request, city_slug: str):
             "cities": CITIES,
             "chains": CHAINS,
             "canonical_url": _canonical_url(request),
+            "item_list_jsonld": _item_list_jsonld(
+                f"{city.display_name}'de {int(budget_try)} TL ile ne yenir", items
+            )
+            if items
+            else None,
         },
     )
 
@@ -112,6 +199,7 @@ def chain_compare_page(request: Request, chain_slug: str, sehir: str = DEFAULT_S
     except Exception as exc:  # real upstream fetch failure -- never fabricate a comparison
         error = f"Upstream real-data fetch failed: {exc}"
 
+    matches = result.summary.matches if result is not None else []
     return templates.TemplateResponse(
         request,
         "chain_compare.html",
@@ -123,6 +211,9 @@ def chain_compare_page(request: Request, chain_slug: str, sehir: str = DEFAULT_S
             "cities": CITIES,
             "chains": CHAINS,
             "canonical_url": _canonical_url(request),
+            "compare_jsonld": _compare_jsonld(chain.display_name, city.display_name, matches)
+            if matches
+            else None,
         },
     )
 
@@ -137,9 +228,72 @@ def privacy_page(request: Request):
     return templates.TemplateResponse(request, "privacy.html", {"canonical_url": _canonical_url(request)})
 
 
+# Real FAQ copy, verbatim identical to web/templates/faq.html's visible
+# <details> entries -- kept here as the single source so the FAQPage
+# JSON-LD below can never drift from what a visitor actually reads.
+FAQ_ENTRIES: tuple[tuple[str, str], ...] = (
+    (
+        "Fiyatlar neden farklı olabilir?",
+        "Trendyol Go ve Yemeksepeti'nin kendi fiyatları, kampanyaları ve komisyon yapıları "
+        "birbirinden bağımsızdır, bu yüzden aynı ürün iki platformda farklı fiyatlanabilir. "
+        "Ucuz Yemek bu fiyatı değiştirmez; her iki platformun o anki gerçek, canlı fiyatını "
+        "olduğu gibi gösterir.",
+    ),
+    (
+        "Hangi şehirler destekleniyor?",
+        "Şu an için İstanbul, Ankara, İzmir, Bursa, Antalya, Adana, Konya, Gaziantep, Mersin, "
+        "Kayseri, Eskişehir, Diyarbakır, Samsun, Denizli, Şanlıurfa, Malatya, Kocaeli (İzmit), "
+        "Trabzon, Erzurum ve Van için canlı veri doğrulanmış şehir sayfaları var. İstediğiniz "
+        "herhangi bir koordinat için ana sayfadaki \"Özel koordinatlar\" seçeneğiyle de canlı "
+        "arama yapabilirsiniz.",
+    ),
+    (
+        "Veriler gerçek mi, yoksa önceden kaydedilmiş mi?",
+        "Her arama, o anda Trendyol Go ve/veya Yemeksepeti'ne yapılan gerçek bir canlı istektir. "
+        "Hiçbir restoran, ürün adı veya fiyat önceden kaydedilip tekrar sunulmaz ya da uydurulmaz.",
+    ),
+    (
+        "Bir platform neden sonuç vermiyor?",
+        "Platformlardan biri geçici olarak erişilemez olduğunda (örneğin bir anti-bot engeli) bu "
+        "açıkça belirtilir ve sonuçlar sadece diğer, erişilebilen platformdan gösterilir. Her iki "
+        "platform da aynı anda erişilemezse bu da olduğu gibi bildirilir.",
+    ),
+    (
+        "Neden her şehirde her zincir karşılaştırması çıkmıyor?",
+        "Trendyol Go'nun konum araması yalnızca girilen noktaya en yakın restoranları döndürür "
+        "(isme göre arama yapan bir uç nokta yok), bu yüzden belirli bir zincirin o şehir "
+        "merkezinde Trendyol Go'da canlı olarak çıkması konuma bağlıdır. Çıkmadığı durumlarda "
+        "sayfa bunu açıkça belirtir, sahte bir sonuç göstermez.",
+    ),
+    (
+        "Hesap oluşturmam gerekiyor mu?",
+        "Hayır. Ucuz Yemek'te hesap, giriş ya da kişisel veri paylaşımı yok.",
+    ),
+)
+
+
+def _faq_jsonld() -> dict[str, Any]:
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": question,
+                "acceptedAnswer": {"@type": "Answer", "text": answer},
+            }
+            for question, answer in FAQ_ENTRIES
+        ],
+    }
+
+
 @router.get("/sss", response_class=Response)
 def faq_page(request: Request):
-    return templates.TemplateResponse(request, "faq.html", {"canonical_url": _canonical_url(request)})
+    return templates.TemplateResponse(
+        request,
+        "faq.html",
+        {"canonical_url": _canonical_url(request), "faq_jsonld": _faq_jsonld()},
+    )
 
 
 def _all_real_locs() -> list[str]:

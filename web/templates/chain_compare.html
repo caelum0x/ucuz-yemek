@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ chain.display_name }} Fiyat Karşılaştırması -- {{ city.display_name }} | Ucuz Yemek{% endblock %}
 {% block meta_description %}{{ city.display_name }}'de {{ chain.display_name }} için Trendyol Go ve Yemeksepeti arasında gerçek, canlı ürün fiyat karşılaştırması.{% endblock %}
+{% block extra_head %}
+{% if compare_jsonld %}
+<script type="application/ld+json">{{ compare_jsonld | tojson }}</script>
+{% endif %}
+{% endblock %}
 {% block content %}
 <header class="hero">
   <h1>{{ chain.display_name }} -- {{ city.display_name }}: Trendyol Go mu Yemeksepeti mi?</h1>

@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Sıkça Sorulan Sorular -- Ucuz Yemek{% endblock %}
 {% block meta_description %}Ucuz Yemek hakkında sıkça sorulan sorular: fiyatlar neden farklı olabilir, hangi şehirler destekleniyor, veriler gerçek mi.{% endblock %}
+{% block extra_head %}
+<script type="application/ld+json">{{ faq_jsonld | tojson }}</script>
+{% endblock %}
 {% block content %}
 <header class="hero">
   <h1>Sıkça Sorulan Sorular</h1>

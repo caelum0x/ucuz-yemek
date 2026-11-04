@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ city.display_name }}'de {{ budget_try|int }} TL ile Ne Yenir? -- Ucuz Yemek{% endblock %}
 {% block meta_description %}{{ city.display_name }}'de bütçenize uygun, gerçek zamanlı restoran ve ürün fiyatları. Trendyol Go ve Yemeksepeti karşılaştırması, {{ city.display_name }} için.{% endblock %}
+{% block extra_head %}
+{% if item_list_jsonld %}
+<script type="application/ld+json">{{ item_list_jsonld | tojson }}</script>
+{% endif %}
+{% endblock %}
 {% block content %}
 <header class="hero">
   <h1>{{ city.display_name }}'de {{ budget_try|int }} TL ile ne yenir?</h1>

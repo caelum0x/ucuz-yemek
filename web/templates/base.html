@@ -6,6 +6,15 @@
 <title>{% block title %}Ucuz Yemek{% endblock %}</title>
 <meta name="description" content="{% block meta_description %}Bütçenize göre gerçek zamanlı restoran ve ürün fiyatları -- Trendyol Go ve Yemeksepeti karşılaştırması.{% endblock %}">
 <link rel="canonical" href="{{ canonical_url }}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:site_name" content="Ucuz Yemek">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:title" content="{{ self.title() }}">
+<meta property="og:description" content="{{ self.meta_description() }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ self.title() }}">
+<meta name="twitter:description" content="{{ self.meta_description() }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
