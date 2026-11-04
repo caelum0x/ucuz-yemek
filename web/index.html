@@ -254,6 +254,12 @@
         </select>
       </div>
     </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="q">Search (optional)</label>
+        <input type="text" id="q" name="q" placeholder="e.g. burger, subway, döner" autocomplete="off">
+      </div>
+    </div>
     <div class="field-row" id="custom-coords" style="display:none;">
       <div class="field">
         <label for="lat">Latitude</label>
@@ -266,8 +272,8 @@
       <div class="field">
         <label for="sort">Sort by</label>
         <select id="sort" name="sort">
-          <option value="closest_to_budget" selected>Most food for the money</option>
-          <option value="best_value">Best value (price + distance + rating)</option>
+          <option value="best_value" selected>Best value (price + distance + rating)</option>
+          <option value="closest_to_budget">Priciest item still in budget</option>
           <option value="cheapest_first">Cheapest first</option>
           <option value="priciest_first">Priciest first</option>
         </select>
@@ -420,12 +426,14 @@
     skeleton();
 
     var sort = document.getElementById("sort").value;
+    var q = document.getElementById("q").value.trim();
     var url =
       "/api/budget?budget=" + encodeURIComponent(budget) +
       "&lat=" + encodeURIComponent(lat) +
       "&lon=" + encodeURIComponent(lon) +
       "&sort=" + encodeURIComponent(sort) +
       "&limit=30";
+    if (q) url += "&q=" + encodeURIComponent(q);
 
     fetch(url)
       .then(function (response) {

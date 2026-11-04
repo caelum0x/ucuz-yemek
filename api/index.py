@@ -73,7 +73,9 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-def _proxy_budget(budget: float, lat: float, lon: float, limit: int, sort: str) -> dict[str, Any] | None:
+def _proxy_budget(
+    budget: float, lat: float, lon: float, limit: int, sort: str, query: str | None = None
+) -> dict[str, Any] | None:
     """Best-effort proxy to UCUZ_YEMEK_BACKEND_URL's own /api/budget. Returns
     None on any failure (network error, non-200, bad JSON) so the caller can
     fall back to the live-fetch path rather than erroring out -- the backend
@@ -81,7 +83,10 @@ def _proxy_budget(budget: float, lat: float, lon: float, limit: int, sort: str) 
     behaviour."""
     if not UCUZ_YEMEK_BACKEND_URL:
         return None
-    qs = urllib.parse.urlencode({"budget": budget, "lat": lat, "lon": lon, "limit": limit, "sort": sort})
+    params = {"budget": budget, "lat": lat, "lon": lon, "limit": limit, "sort": sort}
+    if query:
+        params["q"] = query
+    qs = urllib.parse.urlencode(params)
     url = f"{UCUZ_YEMEK_BACKEND_URL}/api/budget?{qs}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "ucuz-yemek-vercel-proxy/1"})
@@ -106,22 +111,28 @@ def get_budget(
         budget_module.DEFAULT_SORT_MODE,
         description="cheapest_first | priciest_first | closest_to_budget | best_value",
     ),
+    q: str | None = Query(
+        None, max_length=80, description="Optional free-text filter over item/restaurant name, e.g. 'burger'"
+    ),
 ) -> JSONResponse:
     """Real, live items at or under `budget` TRY near (`lat`, `lon`), from
     both platforms (see ucuz_yemek/budget.py for each platform's real,
     honestly-scoped coverage). Every number is a live fetch made during this
-    request -- there is no cache/mock fallback."""
+    request -- there is no cache/mock fallback. `q`, if given, filters the
+    real fetched items by substring match on item/restaurant name -- it is
+    not a separate search index, there is nothing to fabricate a match
+    against."""
     if sort not in budget_module.SORT_MODES:
         raise HTTPException(
             status_code=400, detail=f"unknown sort {sort!r}, expected one of {budget_module.SORT_MODES}"
         )
 
-    proxied = _proxy_budget(budget, lat, lon, limit, sort)
+    proxied = _proxy_budget(budget, lat, lon, limit, sort, q)
     if proxied is not None:
         return JSONResponse(content=proxied)
 
     try:
-        result = budget_module.find_affordable_items(budget, lat, lon, sort_mode=sort)
+        result = budget_module.find_affordable_items(budget, lat, lon, sort_mode=sort, query=q)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

@@ -40,7 +40,14 @@ from dataclasses import dataclass
 from ucuz_yemek import discovery, ranking, trendyol_go, yemeksepeti
 
 SORT_MODES: tuple[str, ...] = ("cheapest_first", "priciest_first", "closest_to_budget", "best_value")
-DEFAULT_SORT_MODE = "closest_to_budget"
+# "closest_to_budget" picks the single HIGHEST-priced item that still clears
+# the budget -- confirmed live 2026-11-04 this surfaces confusing one-off
+# side items (a 270 TRY toast, a 280 TRY kokoreç quarter) as "what you can
+# eat", not a sensible recommendation. "best_value" (price+distance+rating
+# composite, see _sort_items) is the real better default; "closest_to_budget"
+# stays available as an explicit, honestly-labeled option for someone who
+# really does just want to spend close to their number.
+DEFAULT_SORT_MODE = "best_value"
 # "best_value" mode only -- excludes condiment/add-on priced items (confirmed
 # live: McDonald's "Ücretli Soslar" section -- ketchup, mayo, even a plastic
 # bag charge -- all price between 1-15 TRY) from being ranked as someone's
@@ -304,6 +311,21 @@ def _sort_items(items: list[AffordableItem], sort_mode: str) -> list[AffordableI
     return items
 
 
+_TR_FOLD = str.maketrans("İIŞşĞğÜüÖöÇç", "iissgguuoocc")
+
+
+def _search_fold(value: str) -> str:
+    """Turkish-aware casefold so a query like 'sisli' or 'ŞİŞLİ' matches
+    'Şişli' -- plain .casefold() alone mishandles the Turkish dotted/dotless
+    İ/I pair."""
+    return value.translate(_TR_FOLD).casefold()
+
+
+def _matches_query(item: AffordableItem, folded_query: str) -> bool:
+    haystack = _search_fold(f"{item.item_name} {item.restaurant_name}")
+    return folded_query in haystack
+
+
 def find_affordable_items(
     budget_try: float,
     latitude: float,
@@ -313,6 +335,7 @@ def find_affordable_items(
     sort_mode: str = DEFAULT_SORT_MODE,
     use_cache: bool = False,
     cache_ttl_seconds: int = 3600,
+    query: str | None = None,
 ) -> BudgetSearchResult:
     """Real, live items the user can actually afford right now, from both
     platforms. `sort_mode` picks the real ranking strategy (see SORT_MODES /
@@ -367,6 +390,12 @@ def find_affordable_items(
         )
 
     all_items = _dedupe(trendyol_items + yemeksepeti_items)
+    # Real filter over the already-fetched live items (item_name +
+    # restaurant_name), not a separate search index -- there is nothing to
+    # fabricate a match against. Turkish-aware so "sisli" matches "Şişli".
+    if query and query.strip():
+        folded_query = _search_fold(query.strip())
+        all_items = [item for item in all_items if _matches_query(item, folded_query)]
     all_items = _sort_items(all_items, sort_mode)
 
     return BudgetSearchResult(

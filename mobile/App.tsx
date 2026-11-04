@@ -7,7 +7,7 @@
 // web version. See lib/api.ts and ~/products/plans/ucuz-yemek.md.
 import { StatusBar } from "expo-status-bar";
 import * as Location from "expo-location";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -29,6 +29,8 @@ import {
   searchBudget,
 } from "./lib/api";
 import { PRESET_LOCATIONS } from "./lib/locations";
+import Onboarding from "./Onboarding";
+import { hasSeenOnboarding, markOnboardingSeen } from "./lib/onboarding";
 
 const COLORS = {
   bg: "#131209",
@@ -58,13 +60,24 @@ type SearchState =
 
 export default function App() {
   const [budget, setBudget] = useState("300");
+  const [query, setQuery] = useState("");
   const [locationIndex, setLocationIndex] = useState(0);
-  const [sort, setSort] = useState<SortMode>("closest_to_budget");
+  const [sort, setSort] = useState<SortMode>("best_value");
   const [customCoords, setCustomCoords] = useState<{ lat: number; lon: number } | null>(
     null
   );
   const [locatingDevice, setLocatingDevice] = useState(false);
   const [state, setState] = useState<SearchState>({ status: "idle" });
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    hasSeenOnboarding().then((seen) => setShowOnboarding(!seen));
+  }, []);
+
+  const finishOnboarding = useCallback(() => {
+    setShowOnboarding(false);
+    markOnboardingSeen();
+  }, []);
 
   const activeLocation = useMemo(() => {
     if (customCoords) return { label: "My location", ...customCoords };
@@ -112,13 +125,22 @@ export default function App() {
         lon: activeLocation.lon,
         sort,
         limit: 30,
+        q: query.trim() || undefined,
       });
       setState({ status: "success", data });
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Unknown error.";
       setState({ status: "error", message });
     }
-  }, [budget, activeLocation, sort]);
+  }, [budget, query, activeLocation, sort]);
+
+  if (showOnboarding === null) {
+    return <SafeAreaView style={styles.safeArea} />;
+  }
+
+  if (showOnboarding) {
+    return <Onboarding onFinish={finishOnboarding} />;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -131,6 +153,8 @@ export default function App() {
           <Header
             budget={budget}
             onBudgetChange={setBudget}
+            query={query}
+            onQueryChange={setQuery}
             locationIndex={locationIndex}
             onPickLocation={(idx) => {
               setLocationIndex(idx);
@@ -164,6 +188,8 @@ export default function App() {
 function Header(props: {
   budget: string;
   onBudgetChange: (v: string) => void;
+  query: string;
+  onQueryChange: (v: string) => void;
   locationIndex: number;
   onPickLocation: (idx: number) => void;
   usingDeviceLocation: boolean;
@@ -177,14 +203,14 @@ function Header(props: {
 }) {
   return (
     <View>
-      <Text style={styles.title}>Bu bütçeyle ne yiyebilirim?</Text>
+      <Text style={styles.title}>What can I eat for this budget?</Text>
       <Text style={styles.subtitle}>
-        Bütçeni TRY olarak gir, konumunu seç. Trendyol Go ve Yemeksepeti üzerindeki gerçek,
-        canlı fiyatlarla şu an yiyebileceğin şeyleri gör.
+        Enter a budget in TRY and pick a location. See real, live items you can actually
+        afford right now on Trendyol Go and Yemeksepeti.
       </Text>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Bütçe (TRY)</Text>
+        <Text style={styles.label}>Budget (TRY)</Text>
         <TextInput
           value={props.budget}
           onChangeText={props.onBudgetChange}
@@ -194,7 +220,18 @@ function Header(props: {
           style={styles.input}
         />
 
-        <Text style={styles.label}>Konum</Text>
+        <Text style={styles.label}>Search (optional)</Text>
+        <TextInput
+          value={props.query}
+          onChangeText={props.onQueryChange}
+          placeholder="e.g. burger, subway, döner"
+          placeholderTextColor={COLORS.textFaint}
+          style={styles.input}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        <Text style={styles.label}>Location</Text>
         <View style={styles.chipRow}>
           {PRESET_LOCATIONS.map((loc, idx) => {
             const active = idx === props.locationIndex && !props.usingDeviceLocation;
@@ -220,14 +257,14 @@ function Header(props: {
               <Text
                 style={[styles.chipText, props.usingDeviceLocation && styles.chipTextActive]}
               >
-                Konumumu kullan
+                Use my location
               </Text>
             )}
           </Pressable>
         </View>
-        <Text style={styles.scopeNote}>Seçili: {props.activeLocationLabel}</Text>
+        <Text style={styles.scopeNote}>Selected: {props.activeLocationLabel}</Text>
 
-        <Text style={styles.label}>Sırala</Text>
+        <Text style={styles.label}>Sort by</Text>
         <View style={styles.chipRow}>
           {SORT_OPTIONS.map((opt) => {
             const active = opt.value === props.sort;
@@ -253,14 +290,14 @@ function Header(props: {
           {props.loading ? (
             <ActivityIndicator size="small" color={COLORS.bg} />
           ) : (
-            <Text style={styles.submitButtonText}>Ne yiyebilirim, göster</Text>
+            <Text style={styles.submitButtonText}>See what I can eat</Text>
           )}
         </Pressable>
 
         <Text style={styles.scopeNote}>
-          Trendyol Go: konuma en yakın gerçek restoranlar, gerçek mesafeye göre sıralanır.
-          Yemeksepeti: popüler zincirlerden seçilmiş bir liste (bu platformda henüz gerçek bir
-          konum arama API'si yok).
+          Trendyol Go: real nearest restaurants to this location, sorted by real distance.
+          Yemeksepeti: a curated set of popular chains, since that platform has no real
+          location search yet.
         </Text>
       </View>
     </View>
@@ -271,7 +308,7 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
   if (state.status === "idle") {
     return (
       <Text style={styles.emptyHint}>
-        Bütçeni ve konumunu seç, sonra &quot;Ne yiyebilirim, göster&quot;e dokun.
+        Enter a budget and location, then tap &quot;See what I can eat&quot;.
       </Text>
     );
   }
@@ -285,7 +322,7 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
   if (state.status === "error") {
     return (
       <View style={[styles.stateBox, styles.stateBoxError]}>
-        <Text style={styles.stateBoxErrorText}>Arama başarısız oldu. {state.message}</Text>
+        <Text style={styles.stateBoxErrorText}>Search failed. {state.message}</Text>
       </View>
     );
   }
@@ -295,8 +332,8 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
         <PlatformWarning errors={state.data.platform_errors} />
         <View style={styles.stateBox}>
           <Text style={styles.stateBoxText}>
-            Bu bütçe ve konum için şu an uygun fiyatlı gerçek bir ürün bulunamadı. Daha yüksek
-            bir bütçe veya farklı bir konum dene.
+            No real affordable items found for this budget and location right now. Try a
+            larger budget or a different location.
           </Text>
         </View>
       </View>
@@ -308,12 +345,12 @@ function ResultsEmptyState({ state }: { state: SearchState }) {
 function PlatformWarning({ errors }: { errors: Record<string, string> | null }) {
   const names = errors ? Object.keys(errors) : [];
   if (names.length === 0) return null;
-  const label = names.map((n) => platformLabel(n as any)).join(" ve ");
+  const label = names.map((n) => platformLabel(n as any)).join(" and ");
   return (
     <View style={[styles.stateBox, styles.stateBoxWarning]}>
       <Text style={styles.stateBoxWarningText}>
-        {label} şu anda geçici olarak erişilemiyor, aşağıdaki sonuçlar sadece diğer platformdan
-        (hiçbir veri uydurulmadı).
+        {label} is temporarily unavailable, so results below are from the other platform only
+        (nothing is fabricated to fill the gap).
       </Text>
     </View>
   );

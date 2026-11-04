@@ -47,14 +47,16 @@ export async function searchBudget(params: {
   lon: number;
   sort?: SortMode;
   limit?: number;
+  q?: string;
 }): Promise<BudgetSearchResponse> {
-  const { budget, lat, lon, sort = "closest_to_budget", limit = 30 } = params;
+  const { budget, lat, lon, sort = "best_value", limit = 30, q } = params;
   const url = new URL("/api/budget", API_BASE_URL);
   url.searchParams.set("budget", String(budget));
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lon", String(lon));
   url.searchParams.set("sort", sort);
   url.searchParams.set("limit", String(limit));
+  if (q) url.searchParams.set("q", q);
 
   let response: Response;
   try {

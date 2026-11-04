@@ -106,16 +106,18 @@ def get_budget(
     lon: float = Query(..., ge=-180, le=180),
     limit: int = Query(30, ge=1, le=MAX_RESULTS),
     sort: str = Query(budget.DEFAULT_SORT_MODE),
+    q: str | None = Query(None, max_length=80),
 ) -> dict[str, Any]:
     """Same real response shape as the Vercel `api/index.py`'s `/api/budget`
     (see that module) -- `cache_backed: true` is the one real difference:
     this reads Postgres first instead of calling Trendyol Go/Yemeksepeti
-    live on every request."""
+    live on every request. `q` filters the real cached/fetched items by
+    substring match on item/restaurant name, same as api/index.py."""
     if sort not in budget.SORT_MODES:
         raise HTTPException(status_code=400, detail=f"unknown sort {sort!r}, expected one of {budget.SORT_MODES}")
     try:
         result = budget.find_affordable_items(
-            budget_try, lat, lon, sort_mode=sort, use_cache=True, cache_ttl_seconds=CACHE_TTL_SECONDS
+            budget_try, lat, lon, sort_mode=sort, use_cache=True, cache_ttl_seconds=CACHE_TTL_SECONDS, query=q
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
