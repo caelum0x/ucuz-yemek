@@ -97,6 +97,12 @@ def extract_priced_items(html: str, limit: int = 20) -> list[dict]:
         product = _extract_apollo_entry(html, f"RestaurantProductData:{obj_id}")
         if not product or not product.get("title"):
             continue
+        if product.get("isSoldOut"):
+            # Real field in the live Apollo cache (confirmed 2026-11-05) --
+            # skip items the restaurant has marked unorderable right now
+            # rather than surfacing a price for something the user can't
+            # actually get, which is the whole product's core promise.
+            continue
 
         price_try = None
         original_try = None

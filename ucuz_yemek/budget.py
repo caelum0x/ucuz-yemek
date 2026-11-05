@@ -35,6 +35,7 @@ platform to rank on).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from ucuz_yemek import discovery, ranking, trendyol_go, yemeksepeti
@@ -170,7 +171,16 @@ def _trendyol_affordable_items(
         all_restaurants, key=lambda r: (r.get("location") or {}).get("distance", float("inf"))
     )
     restaurants = [
-        r for r in all_restaurants if (r.get("minBasketPrice") or 0) <= budget_try
+        r
+        for r in all_restaurants
+        if (r.get("minBasketPrice") or 0) <= budget_try
+        # Real fields the search response already carries (confirmed live
+        # 2026-11-05) -- a restaurant marked closed/temporarily closed right
+        # now can't actually take an order, so it has no place in "what can
+        # I eat right now" results. Skipped before the per-restaurant menu
+        # fetch (saves a live HTTP call too, not just a filtering nicety).
+        and not r.get("closed")
+        and not r.get("tempClosed")
     ][:restaurant_cap]
 
     for restaurant in restaurants:
@@ -321,9 +331,99 @@ def _search_fold(value: str) -> str:
     return value.translate(_TR_FOLD).casefold()
 
 
+_WORD_RE = re.compile(r"\w+", re.UNICODE)
+
+
+def _tokenize(folded_text: str) -> list[str]:
+    return _WORD_RE.findall(folded_text)
+
+
+def _typo_budget(token_len: int) -> int:
+    """Elasticsearch-style "AUTO" fuzziness: short tokens get zero typo
+    tolerance (every character is signal -- allowing an edit on a 3-letter
+    word matches almost anything), longer tokens get 1-2 edits. Tuned to
+    swallow a real typo ("mcdnalds" -> "mcdonalds", distance 1) without
+    making short words meaningless."""
+    if token_len <= 3:
+        return 0
+    if token_len <= 6:
+        return 1
+    return 2
+
+
+def _levenshtein(a: str, b: str, max_distance: int) -> int:
+    """Dependency-free edit distance (no python-Levenshtein/numpy -- these
+    are single menu-item/restaurant-name words, a handful of characters
+    each, plain Python is correct and fast enough). Returns `max_distance + 1`
+    (i.e. "too far, don't care exactly how far") as soon as it's proven the
+    real distance can't be within budget, so one bad pair never costs more
+    than a short early-exit scan."""
+    if abs(len(a) - len(b)) > max_distance:
+        return max_distance + 1
+    previous_row = list(range(len(b) + 1))
+    for i, char_a in enumerate(a, start=1):
+        current_row = [i] + [0] * len(b)
+        best_in_row = current_row[0]
+        for j, char_b in enumerate(b, start=1):
+            cost = 0 if char_a == char_b else 1
+            current_row[j] = min(
+                previous_row[j] + 1,  # deletion
+                current_row[j - 1] + 1,  # insertion
+                previous_row[j - 1] + cost,  # substitution
+            )
+            best_in_row = min(best_in_row, current_row[j])
+        if best_in_row > max_distance:
+            return max_distance + 1
+        previous_row = current_row
+    return previous_row[-1]
+
+
+_MIN_CONTAINMENT_TOKEN_LEN = 3
+
+
+def _token_fuzzy_match(query_token: str, haystack_token: str) -> bool:
+    if query_token == haystack_token:
+        return True
+    # Containment only counts for tokens with enough real signal to mean
+    # something -- confirmed live 2026-11-05 this matters for real: an
+    # apostrophe isn't a word character, so "Hero's" tokenizes into "hero"
+    # and the bare fragment "s", and "s" is trivially a substring of nearly
+    # any query word (e.g. "mcdnalds"), which without this guard falsely
+    # matched every "Hero's Pizza" item against an unrelated McDonald's
+    # query.
+    if len(query_token) >= _MIN_CONTAINMENT_TOKEN_LEN and query_token in haystack_token:
+        return True
+    if len(haystack_token) >= _MIN_CONTAINMENT_TOKEN_LEN and haystack_token in query_token:
+        return True
+    max_distance = _typo_budget(len(query_token))
+    if max_distance == 0:
+        return False
+    return _levenshtein(query_token, haystack_token, max_distance) <= max_distance
+
+
 def _matches_query(item: AffordableItem, folded_query: str) -> bool:
-    haystack = _search_fold(f"{item.item_name} {item.restaurant_name}")
-    return folded_query in haystack
+    """Real fuzzy, order-independent, typo-tolerant match over the
+    already-fetched live item/restaurant names -- an Elasticsearch-grade
+    upgrade from a plain substring check (confirmed live 2026-11-05: the
+    old check alone couldn't match "king burger" against "Burger King", or
+    a typo like "borger king"). Every query token must fuzzy-match at
+    least one haystack token (AND semantics, order-independent), so every
+    real word the user typed still has to mean something -- a one-word
+    query doesn't just match everything. Checks the plain substring case
+    first since it's strictly cheaper and already correct for an
+    exact-phrase query typed in the haystack's own word order."""
+    haystack_text = _search_fold(f"{item.item_name} {item.restaurant_name}")
+    if folded_query in haystack_text:
+        return True
+    query_tokens = _tokenize(folded_query)
+    if not query_tokens:
+        return False
+    haystack_tokens = _tokenize(haystack_text)
+    if not haystack_tokens:
+        return False
+    return all(
+        any(_token_fuzzy_match(q_tok, h_tok) for h_tok in haystack_tokens) for q_tok in query_tokens
+    )
 
 
 def find_affordable_items(

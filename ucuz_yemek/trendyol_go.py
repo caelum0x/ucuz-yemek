@@ -65,10 +65,21 @@ def get_restaurant_menu(restaurant_id: int, latitude: float, longitude: float) -
 
 
 def flatten_menu_items(restaurant: dict) -> list[dict]:
-    """Flatten restaurant['sections'][*]['products'] into (name, price) rows."""
+    """Flatten restaurant['sections'][*]['products'] into (name, price) rows.
+
+    Skips products with `active: false` -- confirmed live 2026-11-05 this is
+    a real field the API already returns (e.g. a restaurant's "Sütlaç"
+    temporarily unavailable), not a hypothetical. `.get("active", True)`
+    defaults an item with no `active` key at all to included (real items
+    seen with the key simply absent, not a stand-in for "unavailable" --
+    only an explicit `False` means out of stock). Without this, a currently
+    unorderable item could be surfaced as something the user can "actually
+    eat right now," which is the product's core promise."""
     items: list[dict] = []
     for section in restaurant.get("sections", []):
         for product in section.get("products", []):
+            if product.get("active", True) is False:
+                continue
             price = product.get("price", {}).get("salePrice")
             items.append(
                 {
